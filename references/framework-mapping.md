@@ -17,7 +17,9 @@ using System.Text;
 
 public static class WindowsSecureStorage
 {
-    // 嚴格使用 CurrentUser scope；可選傳入 secondary entropy
+    // 嚴格使用 CurrentUser scope；可選傳入 secondary entropy 作為命名空間隔離
+    // 注意：靜態寫入的 Entropy 並非 Secret，無法抵禦同使用者權限下的惡意行程。
+    // 若需實質額外防護，應傳入使用者輸入的 PIN/Passphrase 或直接傳入 null 使用標準 DPAPI。
     private static readonly byte[] Entropy = Encoding.UTF8.GetBytes("AppSpecific-Secondary-Entropy-Salt");
 
     public static void SaveSecret(string filePath, string secret)
@@ -36,7 +38,7 @@ public static class WindowsSecureStorage
         // 寫入二進位檔案，絕不落地明文
         File.WriteAllBytes(filePath, encryptedBytes);
         
-        // 清理記憶體暫存 (Best Practice)
+        // 清理記憶體暫存 (注意：僅清理 byte[]，若外層已建立 immutable string 仍會留存於 Managed Heap)
         Array.Clear(plaintextBytes, 0, plaintextBytes.Length);
     }
 
@@ -54,6 +56,7 @@ public static class WindowsSecureStorage
                 DataProtectionScope.CurrentUser
             );
 
+            // 轉換為 string 供業務消費；若架構允許，應盡量以 byte[] 直接消費以利及時清整
             string secret = Encoding.UTF8.GetString(decryptedBytes);
             Array.Clear(decryptedBytes, 0, decryptedBytes.Length);
             return secret;
@@ -71,13 +74,18 @@ public static class WindowsSecureStorage
 在 WinUI 3 或支援 WinRT 的專案中，可直接使用 `Windows.Security.Credentials.PasswordVault`：
 ```csharp
 var vault = new Windows.Security.Credentials.PasswordVault();
-// 儲存
+// 儲存（注意：受限於 CRED_MAX_CREDENTIAL_BLOB_SIZE ≈ 2.5 KB，過長 Token 需改用 DPAPI 檔案）
 vault.Add(new Windows.Security.Credentials.PasswordCredential("MyApp:OpenAI", "UserAccount", apiKey));
 // 讀取
 var cred = vault.Retrieve("MyApp:OpenAI", "UserAccount");
 cred.RetrievePassword();
 string key = cred.Password;
 ```
+
+### 1.3 密碼學私鑰專用儲存建議 (.NET)
+若機密資料為**長期使用的非對稱加密私鑰**（如 X.509 憑證私鑰、數位簽章金鑰）：
+- 優先使用 **Windows Certificate Store** (`X509Store`)，並設定私鑰為不可導出 (`CngKeyCreationOptions.OverwriteExistingKey`)。
+- 或透過 **CNG / `CngKey`** 指定 `Microsoft Platform Crypto Provider` 儲存於 **TPM 硬體晶片**。可將原始私鑰保持為不可匯出 (non-exportable) 且在硬體內完成運算，顯著降低私鑰抽取風險（但需注意同使用者已授權情境下仍可能被惡意行程調用簽章 API）。
 
 ---
 
@@ -137,6 +145,12 @@ bool WriteCredential(const wchar_t* targetName, const wchar_t* userName, const s
 }
 ```
 
+### 2.3 密碼學私鑰專用儲存建議 (C/C++)
+若管理的是非對稱密碼學私鑰（如 RSA / ECC 私鑰）：
+- 優先使用 **CNG (Cryptography Next Generation)** 之 `NCryptOpenStorageProvider`。
+- 開發時可指定 `MS_PLATFORM_CRYPTO_PROVIDER` 以利用主機 **TPM (Trusted Platform Module)** 晶片。原始私鑰材質維持不可導出 (non-exportable) 且運算在硬體晶片內進行，大幅降低直接抽取私鑰材質的風險（但無法單靠硬體防止同使用者已授權情境下的惡意 API 呼叫）。
+- 一般軟體金鑰則可存於 Windows Certificate Store (`CertOpenStore`) 並設為不可匯出。
+
 ---
 
 ## 3. Python Desktop (PyQt, PySide, Tkinter, wxPython)
@@ -187,7 +201,7 @@ def dpapi_protect(data: bytes) -> bytes:
 
 ### 核心架構警示
 - **常見錯誤**：直接使用 `FileAccess.open("user://settings.cfg", FileAccess.WRITE)` 寫入 API Key 或密碼。
-- **真相**：`user://` 在 Windows 上映射為 `%APPDATA%\Godot\app_userdata\<專案名>\`，**是完全明文的檔案**！
+- **真相**：`user://` 在 Windows 上映射為 `%APPDATA%\Godot\app_userdata\<專案名>\`，**不會因為其所在位置而自動具備機密保護**；若未經 DPAPI 加密，直接寫入的檔案即為明文！
 
 ### 4.1 Godot C# 解決方案
 在 Godot .NET 專案中，直接引用 `System.Security.Cryptography.ProtectedData`，將檔案二進位加密後寫入 `user://secret.bin`。
@@ -227,33 +241,41 @@ fn get_secret(service: String, user: String) -> Result<String, String> {
 ## 6. Electron (Node.js + Chromium)
 
 ### 6.1 原生支援：`safeStorage`
-Electron 內建 `safeStorage` API，在 Windows 底層直接使用 DPAPI：
+Electron 內建 `safeStorage` API，在 Windows 底層直接使用 DPAPI。官方目前推薦在新專案中採用非同步 API（`encryptStringAsync` / `decryptStringAsync`），以避免阻塞 Main Process 事件迴圈：
 ```javascript
 const { safeStorage, app } = require('electron');
-const fs = require('fs');
+const fs = require('fs').promises;
 const path = require('path');
 
-app.whenReady().then(() => {
+app.whenReady().then(async () => {
     // 必須先檢查作業系統金鑰庫是否可用
     if (!safeStorage.isEncryptionAvailable()) {
         // Fail-Closed: 嚴禁 silent fallback to plaintext!
         throw new Error("Windows 安全加密庫不可用，無法安全保存憑證。");
     }
 
-    function saveSecret(plainSecret) {
-        const encryptedBuffer = safeStorage.encryptString(plainSecret);
-        const secretPath = path.join(app.getPath('userData'), 'secure_credentials.bin');
-        fs.writeFileSync(secretPath, encryptedBuffer);
+    const secretPath = path.join(app.getPath('userData'), 'secure_credentials.bin');
+
+    async function saveSecret(plainSecret) {
+        // 優先採用官方推薦之非同步 safeStorage API，避免阻塞 Main Process
+        const encryptedBuffer = await safeStorage.encryptStringAsync(plainSecret);
+        await fs.writeFile(secretPath, encryptedBuffer);
     }
 
-    function readSecret() {
-        const secretPath = path.join(app.getPath('userData'), 'secure_credentials.bin');
-        if (!fs.existsSync(secretPath)) return null;
-        const encryptedBuffer = fs.readFileSync(secretPath);
-        return safeStorage.decryptString(encryptedBuffer);
+    async function readSecret() {
+        try {
+            const encryptedBuffer = await fs.readFile(secretPath);
+            return await safeStorage.decryptStringAsync(encryptedBuffer);
+        } catch (err) {
+            if (err.code === 'ENOENT') return null;
+            throw err;
+        }
     }
 });
 ```
+
+> [!TIP]
+> **API 選用指引**：`safeStorage.encryptStringAsync` 與 `decryptStringAsync` 為現行 Electron 官方正式推薦之非同步加解密 API，可防止主程序在金鑰派生時阻塞 UI 與 IPC。同步 API (`encryptString` / `decryptString`) 可能於後續版本逐步廢棄，實作時應對照目標 Electron 版本之官方 API 文件。
 
 ---
 

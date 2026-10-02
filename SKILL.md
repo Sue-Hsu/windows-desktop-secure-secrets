@@ -20,7 +20,7 @@ description: >-
 本技能的核心目標是確保 Windows 桌面應用中的機密資料在全生命週期中獲得 **Windows OS 等級** 的保護，嚴格消除「將使用者資料目錄誤當安全沙盒」、「明文儲存機密」、「自創加密」、「Silent Fallback to Plaintext」及「Public Client 誤用 Client Secret」等常見重大資安漏洞。
 
 > [!WARNING]
-> **警示 (Notice)**：此 Skill 完全由 AI 提案與製作，請斟酌使用。各項安全建議與程式碼範例請結合專案實際架構審慎評估與測試。
+> **說明 (Notice)**：本 Skill 由 **[Sue-Hsu](https://github.com/Sue-Hsu)** 獨立發布與維護，由 AI 協作製作（包含 **[Codex](https://github.com/openai/codex)** 提供初始規格建議，以及 **Antigravity** 協助核心實作與驗收）。在生產環境應用或重構關鍵資安架構前，請務必依專案特定的威脅模型進行嚴格安全審核。
 
 ---
 
@@ -31,13 +31,13 @@ description: >-
 - **機密資料類型**：
   - API Key、第三方服務金鑰、Webhook Secret
   - 使用者密碼、資料庫密碼、服務認證密碼
-  - OAuth Access Token、OAuth Refresh Token、ID Token、Session Token
+  - OAuth Access Token、OAuth Refresh Token、ID Token（敏感身分斷言）、Session Token
   - Client Secret（評估桌面客戶端身分安全性）
-  - 私鑰 (Private Key)、憑證檔案 (PFX/PEM)、對稱加解密金鑰
+  - 長期密碼學私鑰 (Private Key)、憑證檔案 (PFX/PEM)、對稱加解密金鑰
   - 任何可用於驗證、授權或冒用身分之敏感憑證資料
 - **儲存與認證架構**：
   - 設計或審查本地持久化儲存（Local Storage, Settings, Database, Config files）
-  - 評估或實作 Windows 原生安全機制（Windows Credential Manager、Windows DPAPI）
+  - 評估或實作 Windows 原生安全機制（Windows Credential Manager、Windows DPAPI、CNG/TPM、Windows Certificate Store）
   - 桌面應用整合 OAuth 2.0 / OpenID Connect (OIDC) / Google Login / GitHub Login 等身分驗證流程
   - 檢視桌面程式的設定檔匯出、備份、除錯日誌或錯誤回報機制
 
@@ -60,7 +60,7 @@ description: >-
 ## 13 大核心安全原則 (Core Security Principles)
 
 1. **使用者資料目錄不等於安全 Secret Storage**
-   `AppData`、`LocalLow`、`Roaming`、Godot `user://` 或各框架的 user data directory 只代表「該目錄適合隔離存放使用者專屬資料」，**本質仍是標準的明文檔案系統**，不具備任何 OS 等級的防竊取加密保護。
+   檔案存放在 `AppData`、`LocalLow`、`Roaming`、Godot `user://` 或各框架的 user data directory 中，**不會因為其所在位置而自動獲得機密資料保護**。該目錄本質僅是作業系統的標準檔案系統儲存位置，若未經過 DPAPI 或其他密碼學保護，存放在內的檔案即為未受保護之明文，本機同使用者權限之軟體皆能直接讀取。
 2. **禁止敏感資料明文持久化**
    所有可用於驗證、授權或代表身分的 Secret，絕對禁止以明文形式直接持久化於磁碟。
 3. **禁止明文寫入程式碼或專案檔案**
@@ -69,22 +69,25 @@ description: >-
    將包含 Secret 的設定檔加入 `.gitignore` 僅能避免被 Git 追蹤，無法防止本機其他未授權程式、惡意軟體或具備存取權限的非管理員帳號直接自磁碟讀取明文。
 5. **優先採用 Windows OS-Level 安全保護**
    應依據專案所屬之程式語言與執行時期環境，優先整合：
-   - **Windows Credential Manager**（認證憑證首選，儲存於 OS 專屬 Vault）
+   - **Windows Credential Manager**（認證憑證首選，儲存於 OS 專屬 Vault，上限 2560 Bytes）
    - **Windows Data Protection API (DPAPI)**（對稱加密首選，由 Windows 使用者登入金鑰派生保護）
+   - **Windows Certificate Store / CNG (TPM-backed)**（長期密碼學私鑰專用儲存）
 6. **DPAPI 安全規範**
    - **先加密再落地**：寫入任何磁碟前必須透過 `CryptProtectData` 完成加密。
    - **禁止自創密碼學**：嚴禁自行編寫 XOR、自訂加密演算法，亦禁止將 Base64 當作加密手段。
    - **禁止硬編碼解密金鑰**：DPAPI 本身由 OS 管理主金鑰，禁止在應用程式中 Hardcode 任何輔助對稱金鑰。
    - **作用域限制 (Scope)**：個人桌面應用程式一律優先使用 `CurrentUser`（僅當前登入之 Windows 使用者能解密）；嚴禁濫用 `LocalMachine`（否則本機上任何其他使用者或服務均可解密）。
-   - **威脅模型認知**：DPAPI 可有效防範離線磁碟竊取、備份外洩及跨使用者帳號讀取；但在**同一 Windows 使用者權限下運行的惡意程式**仍可在執行時期調用 DPAPI 解密，高敏感場景應輔以使用者授權或 PIN。
+   - **可選次要熵 (Optional Entropy) 的正確邊界**：靜態寫入的應用程式 Entropy 僅作為命名空間隔離與防止跨程式誤讀，**並非 Secret，不能防範同使用者權限下的惡意行程**；實質增強需來自使用者輸入的 PIN/Passphrase。
+   - **威脅模型認知**：DPAPI 可顯著降低離線磁碟竊取、備份外洩及跨使用者帳號讀取風險；但在**同一 Windows 使用者權限下運行的惡意程式**仍可在執行時期調用 DPAPI 解密，高敏感場景應輔以使用者授權或 PIN。
 7. **Windows Credential Manager 安全規範**
    - 本地設定檔（如 `config.json`）僅保存 Credential Identifier（例如 TargetName / Username / Key ID 等 Metadata）。
    - 真正的 Secret（密碼、Token、Key）委由 Credential Manager 管理，**嚴禁在普通設定檔中備份明文副本**。
+   - 容量上限為 2560 Bytes（約 2.5 KB），超長 Token 應改用 DPAPI 加密檔案。
 8. **Fail-Closed 原則（防範 Silent Fallback）**
    - 當 Windows Secure Storage、DPAPI 或 Credential Manager 因環境限制、權限問題或系統服務異常而不可用時，**嚴格禁止 Silent Fallback to Plaintext**（不得靜默改存明文 JSON/INI）。
    - 必須採取 **Fail-Closed**：明確向使用者跳出錯誤提示中斷操作，或僅允許於「當前 Session Memory 暫存（應用程式重啟後即消失，需重新驗證）」，絕不得落地。
 9. **全生命週期檢視 (Secret Lifecycle)**
-   完整追蹤每個 Secret 的 10 節點流向：
+   完整追蹤每個 Secret 的 11 節點流向：
    `Input` → `Memory` → `Storage` → `Transmission` → `Usage` → `Logging` → `Error Handling` → `Export` → `Backup` → `Deletion` → `Rotation/Revoke`。
 10. **UI 與輸出防護**
     - UI 介面輸入與顯示時必須**預設遮罩**（Masked / Password field）。
@@ -125,7 +128,7 @@ flowchart LR
 ### Phase 2 — Data Flow Trace (資料流向追蹤)
 - 追蹤每個 Secret 從進入應用程式到銷毀的完整路徑：
   1. 輸入端 (User Input / API Response / Config / Env)
-  2. 記憶體留存型態 (Plain String vs SecureString/Pinned Memory)
+  2. 記憶體留存型態（Plain String vs Mutable Byte Buffers / Pinned Memory；注意：Microsoft 已不建議在新的 .NET 開發中使用 SecureString，應縮短明文存活時間並減少字串複製）
   3. 持久化時機與目的地 (Disk Storage)
   4. 傳輸通道 (TLS 1.2+ HTTPS)
   5. 呼叫與消費方式 (Header, Body, Parameter)

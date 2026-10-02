@@ -8,7 +8,7 @@
 [![Agent: Framework--Agnostic](https://img.shields.io/badge/Agent-Universal-brightgreen.svg)](#)
 
 > [!WARNING]
-> **重要說明**：本 Skill 由 **[Codex](https://github.com/codex)** 提案規格，由 **Antigravity** ([Google DeepMind](https://deepmind.google/)) 負責架構與代碼開發，並由 **[Sue-Hsu](https://github.com/Sue-Hsu)** 維護發布。使用時請斟酌並於生產環境落實安全審查。
+> **說明**：本 Skill 由 **[Sue-Hsu](https://github.com/Sue-Hsu)** 獨立發布與維護，由 AI 協作製作（包含 **[Codex](https://github.com/openai/codex)** 提供初始規格建議，以及 **Antigravity** 協助核心實作與驗收）。在生產環境應用或重構關鍵資安架構前，請務必依專案特定的威脅模型進行嚴格安全審核。
 
 ---
 
@@ -16,7 +16,7 @@
 
 Windows 桌面應用程式經常需要持久化保存各類機密資料，包含 API Key、OAuth Token、使用者帳號密碼、Refresh Token 以及私鑰。
 
-然而，一般常見的使用者目錄，例如 `%APPDATA%`、框架專屬設定目錄或虛擬本地儲存路徑，僅僅代表具備磁碟寫入與資料持久化能力——**它們絕非安全沙盒**。在 Windows 檔案系統中，這些目錄下的檔案本質均為未經保護的明文檔案，本機同使用者權限下運行的任何程式均能直接讀取。
+然而，一般常見的使用者目錄，例如 `%APPDATA%`、框架專屬設定目錄或虛擬本地儲存路徑，僅僅代表具備磁碟寫入與資料持久化能力——**它們絕非安全沙盒**。檔案存放在 AppData 或其他使用者資料目錄中，不會因為其所在位置而自動獲得機密資料保護；若未經作業系統層級密碼學保護（如 DPAPI），存放在內的檔案本質仍是標準檔案系統物件，本機同使用者權限下運行的任何程式均能直接讀取。
 
 本技能旨在裝備 AI 編程助手（如 Antigravity、Cursor、Claude Code 等各類 LLM Agent）：
 - **盤點與分類**所有敏感憑證與機密資訊。
@@ -54,7 +54,7 @@ Windows 桌面應用程式經常需要持久化保存各類機密資料，包含
   - **Windows Data Protection API (DPAPI)** (`CryptProtectData`, `ProtectedData`, `safeStorage`)
   - **Windows Credential Manager** (`CredWrite`, `PasswordVault`, `keyring`)
 - 桌面原生應用的 OAuth 2.0 / OIDC 架構規範 (RFC 8252, RFC 7636 PKCE)。
-- 完整憑證生命週期審查（輸入、記憶體、儲存、傳輸、使用、日誌、匯出、備份、刪除、撤銷）。
+- 完整 11 節點憑證生命週期審查（輸入、記憶體、儲存、傳輸、使用、日誌、錯誤處理、匯出、備份、刪除、輪替撤銷）。
 - 外洩金鑰之撤銷、輪替與 Git 歷史清除指導。
 - 跨技術棧實作對應（.NET、C++、Python、Godot、Electron、Tauri、Qt、Java）。
 
@@ -120,18 +120,18 @@ flowchart LR
 您可以將此技能直接導入任何相容標準 Agent Skills 規範之 AI 輔助開發工具：
 
 ### 方式一：Git Clone
-將本 Repository 複製至您的 Agent 本地或全域技能目錄：
+將本 Repository 複製至您的 Agent 支援的技能目錄（實際路徑請依各 Agent / CLI 官方文件為準）：
 
 ```bash
-# Antigravity / Gemini CLI 全域目錄範例
-git clone https://github.com/your-username/windows-desktop-secure-secrets.git ~/.gemini/config/skills/windows-desktop-secure-secrets
+# Antigravity / Gemini CLI 目錄路徑範例 (Example path)
+git clone https://github.com/Sue-Hsu/windows-desktop-secure-secrets.git ~/.gemini/config/skills/windows-desktop-secure-secrets
 
-# Cursor 或特定專案工作區範例
-git clone https://github.com/your-username/windows-desktop-secure-secrets.git .agents/skills/windows-desktop-secure-secrets
+# Cursor、Claude Code 或專案工作區路徑範例 (Example path)
+git clone https://github.com/Sue-Hsu/windows-desktop-secure-secrets.git .agents/skills/windows-desktop-secure-secrets
 ```
 
 ### 方式二：專案手動導入
-直接將本儲存庫中的檔案複製至您專案下的 `.agent/skills/` 或 `skills/` 資料夾中。
+直接將本儲存庫中的檔案複製至您專案支援的技能資料夾中（例如 `.agents/skills/` 或 `skills/`）。
 
 ---
 
@@ -284,8 +284,8 @@ windows-desktop-secure-secrets/
 特別致謝專案發起人與 AI 開發協作夥伴：
 
 - **[Sue-Hsu](https://github.com/Sue-Hsu)** - 專案發起人與維護者 (Project Owner & Maintainer)
-- **[Codex](https://github.com/codex)** ([OpenAI](https://openai.com/)) - 初始技能提案與架構規格定義 (Initial Proposal & Specification)
-- **Antigravity** ([Google DeepMind](https://deepmind.google/)) - 核心規則引擎開發、安全生命週期實作與驗收 (Core Development & Verification)
+- **[Codex](https://github.com/openai/codex)** ([OpenAI](https://openai.com/)) - 初始規格建議 (Initial specification assistance)
+- **Antigravity** ([Google DeepMind](https://deepmind.google/)) - 核心實作協助與驗收流程 (Implementation assistance & verification)
 
 ---
 

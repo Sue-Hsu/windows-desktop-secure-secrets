@@ -46,14 +46,15 @@
 
 桌面應用接收 OAuth 授權碼的兩種主要模式：
 
-### 3.1 推薦模式：Loopback Interface (本機迴路伺服器)
+### 3.1 支援模式：Loopback Interface (本機迴路伺服器)
 - 桌面應用程式在啟動授權前，於本機隨機連接埠啟動暫時性 HTTP 監聽器（例如 `http://127.0.0.1:0`）。
-- **優勢**：
-  - 安全性最高，不易被惡意軟體偽造協議劫持。
-  - 符合 RFC 8252 推薦規範。
-- **安全細節**：
-  - 必須驗證 `state` 參數以防範 CSRF。
-  - 接收到回調後立即關閉本機 HTTP 伺服器。
+- **特性與威脅模型評估**：
+  - 是 RFC 8252 (OAuth 2.0 for Native Apps) 支援且常用的原生應用重定向模式。
+  - 相比 Custom URI Scheme，能避免全域協議搶佔 (Scheme Hijacking)。
+  - **同機風險與防護**：若本機存在惡意軟體，仍可能面臨本地網絡端口競爭或監聽風險。因此：
+    - **必須強制啟用 PKCE**：即使 Authorization Code 在本機被窺探，攻擊者因缺乏記憶體中的 `code_verifier` 仍無法換取 Token。
+    - **必須驗證 `state` 與 `nonce` 參數**：嚴格比對回調中的隨機數，防範跨站請求偽造 (CSRF) 與重放注入。
+    - 接收到回調並交換完畢後，立即關閉本機 HTTP 伺服器並釋放端口。
 
 ### 3.2 替代模式：Custom URI Scheme (如 `myapp://auth-callback`)
 - 於 Windows 註冊表建立自訂 URL Protocol。
@@ -66,16 +67,16 @@
 
 ## 4. Token 敏感情境與階層式安全防護
 
-桌面應用程式從 OAuth 取得之各類憑證，應依敏感等級採取差異化防護：
+桌面應用程式從 OAuth / OIDC 取得之各類憑證，應依其密碼學用途與敏感等級採取差異化防護：
 
-| 憑證類型 | 敏感度 | 建議防護策略 | 落地規範 |
+| 憑證類型 | 密碼學定位與敏感度 | 建議防護策略 | 落地規範 |
 |---|---|---|---|
-| **Public Client ID** | 低 (公開) | 可明文存於程式碼或一般設定 | 無需加密 |
-| **State / Nonce** | 中 (短暫) | 僅於發起授權至回調期間留存記憶體 | **嚴禁持久化** |
-| **Code Verifier** | 中 (一次性) | 僅於交換 Token 前留存記憶體 | **嚴禁持久化**，換取完立即銷毀 |
-| **ID Token** | 中 (含使用者個資) | 僅於 Session Memory 中解析 Claims | 若需快取，必須 DPAPI 加密 |
-| **Access Token** | **高** (具備資源操作權限) | 優先純記憶體保存；過期時使用 Refresh Token 換新 | 若需跨重啟保持，必須經 **DPAPI (CurrentUser)** 加密儲存 |
-| **Refresh Token** | **極高 (長期最高控制權)** | **強制 OS 等級保護** | **必須存入 Windows Credential Manager 或經 DPAPI 加密，嚴禁明文寫入檔案** |
+| **Public Client ID** | 低 (公開識別碼) | 可明文存於程式碼或一般設定 | 無需加密 |
+| **State / Nonce** | 中 (短暫防偽隨機值) | 僅於發起授權至回調期間留存記憶體 | **嚴禁持久化** |
+| **Code Verifier** | 中 (PKCE 一次性秘密) | 僅於交換 Token 前留存記憶體 | **嚴禁持久化**，換取完立即銷毀 |
+| **ID Token** | **敏感身分斷言 (Sensitive Identity Assertion)**<br>主要用於證明身分與宣告 Claims (包含個資 PII)，非 API 授權 Token | 僅於 Session Memory 中解析 Claims；**應避免不必要的磁碟持久化** | 若業務需求需快取，必須經 **DPAPI (CurrentUser)** 加密儲存，且切勿混同為 API Bearer Token |
+| **Access Token** | **高 (資源存取授權 Token)**<br>具備 API 呼叫權限，具明確有效期限 | 優先純記憶體保存；過期時使用 Refresh Token 換新 | 若需跨重啟保持，必須經 **DPAPI (CurrentUser)** 加密儲存 |
+| **Refresh Token** | **極高 (長期最高更新權限)**<br>可用於換取新的 Access Token | **強制 OS 等級保護** | **必須存入 Windows Credential Manager 或經 DPAPI 加密，嚴禁明文寫入檔案** |
 
 ---
 
@@ -83,9 +84,9 @@
 
 當使用者在桌面應用中點擊「登出 (Sign Out)」或「重設帳號」時，必須執行**完整註銷協議**：
 1. **呼叫 IdP 撤銷端點 (RFC 7009)**：
-   向提供商發送 Revocation 請求，作廢 Access Token 與 Refresh Token。
+   向提供商發送 Revocation 請求，作廢 Access Token 與 Refresh Token。這是防範憑證外洩最根本且關鍵的防線。
 2. **清除本機 Windows Credential / DPAPI 檔案**：
-   - 呼叫 `CredDeleteW` 或 `ProtectedData` 檔案刪除。
-   - 覆寫二進位檔案內容後刪除，防止磁碟殘留還原。
+   - 呼叫 `CredDeleteW` 清除憑證庫。
+   - 刪除本地 DPAPI 加密檔案作為生命週期清理（注意：因現代 SSD 損耗平衡特性，應用層覆寫無法保證物理資料無法復原，主要安全依賴伺服端撤銷）。
 3. **清理記憶體**：
-   將快取於變數中之 Token 字串執行覆蓋或重置為 null。
+   將快取於變數中之 Token 字串與緩衝區執行重置與清理。

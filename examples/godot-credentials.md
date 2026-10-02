@@ -6,8 +6,8 @@ This example addresses the common misconception that Godot's `user://` virtual d
 
 ## The Reality of `user://`
 - On Windows, `user://` maps directly to `%APPDATA%\Godot\app_userdata\<Project-Name>\`.
-- Standard calls like `FileAccess.open("user://secrets.json", FileAccess.WRITE)` store data in **unprotected, plaintext text files**.
-- Any application running with standard user rights can read these files.
+- Files stored in `user://` do not receive automatic secret protection merely because of their location.
+- Standard unencrypted calls like `FileAccess.open("user://secrets.json", FileAccess.WRITE)` persist data in unprotected plaintext files, readable by any application running with standard user rights.
 
 ---
 
@@ -24,6 +24,9 @@ using System.Text;
 
 public partial class SecureAuthManager : Node
 {
+    // Optional game-specific entropy for namespacing and accidental cross-use prevention.
+    // NOTE: This hardcoded entropy is NOT a secret and does NOT protect against same-user malicious processes.
+    // For true secret separation, supply a user-entered PIN or pass null for default DPAPI.
     private static readonly byte[] Entropy = Encoding.UTF8.GetBytes("Game-Specific-Entropy-Salt");
 
     public static void SaveAuthToken(string token)
@@ -74,6 +77,17 @@ public partial class SecureAuthManager : Node
         {
             GD.PrintErr($"[Security Error] Failed to decrypt auth token: {ex.Message}");
             return null;
+        }
+    }
+
+    public static void DeleteAuthToken()
+    {
+        string globalPath = ProjectSettings.GlobalizePath("user://auth.dat");
+        if (File.Exists(globalPath))
+        {
+            // Application lifecycle cleanup. Overwriting cannot guarantee secure erasure on SSDs;
+            // prioritize rotating the token server-side if compromise is suspected.
+            File.Delete(globalPath);
         }
     }
 }

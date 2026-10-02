@@ -8,8 +8,7 @@
 [![Agent: Framework--Agnostic](https://img.shields.io/badge/Agent-Universal-brightgreen.svg)](#)
 
 > [!WARNING]
-> **Notice / 說明**：本 Skill 由 **[Codex](https://github.com/codex)** 提案規格，由 **Antigravity** ([Google DeepMind](https://deepmind.google/)) 負責架構與代碼開發，並由 **[Sue-Hsu](https://github.com/Sue-Hsu)** 維護發布。請斟酌使用並於生產環境落實安全審查。
-> *(This skill was originally proposed by Codex, developed and engineered by Antigravity, and maintained by Sue-Hsu. Please review with discretion in production environments.)*
+> **Notice**: This skill was independently authored and maintained by **[Sue-Hsu](https://github.com/Sue-Hsu)** with collaborative AI assistance (initial specification assistance by **[Codex](https://github.com/openai/codex)**, core implementation and verification assistance by **Antigravity**). Please review with discretion and evaluate against your project's specific threat model.
 
 ---
 
@@ -17,7 +16,7 @@
 
 Windows desktop applications frequently need to manage sensitive data, including API keys, OAuth tokens, user passwords, refresh tokens, and private keys. 
 
-However, common user directories such as `%APPDATA%`, framework-specific configuration folders, or virtual local storage paths are merely storage locations—**they are not security sandboxes**. On Windows, files in these directories are standard plaintext filesystem files readable by any application running under the user's account.
+However, common user directories such as `%APPDATA%`, framework-specific configuration folders, or virtual local storage paths are merely storage locations—**they are not security sandboxes**. Files stored in AppData or other user-data directories do not receive automatic secret protection merely because of their location; without OS-level cryptographic protection (such as DPAPI), stored files remain standard filesystem objects accessible to other applications running under the user's account.
 
 This skill equips AI coding agents (such as Antigravity, Cursor, Claude Code, and other LLM assistants) to:
 - **Discover and classify** all sensitive credentials and secrets.
@@ -55,7 +54,7 @@ This skill provides automated guidance to systematically identify and eradicate 
   - **Windows Data Protection API (DPAPI)** (`CryptProtectData`, `ProtectedData`, `safeStorage`).
   - **Windows Credential Manager** (`CredWrite`, `PasswordVault`, `keyring`).
 - OAuth 2.0 and OIDC for Native Apps (RFC 8252, RFC 7636 PKCE).
-- Complete credential lifecycle auditing (Input, Memory, Storage, Transmission, Usage, Logging, Export, Backup, Deletion, Revocation).
+- Complete 11-stage credential lifecycle auditing (Input, Memory, Storage, Transmission, Usage, Logging, Error Handling, Export, Backup, Deletion, Rotation/Revocation).
 - Guidance on credential rotation and Git history scrubbing.
 - Framework-specific implementation mappings (.NET, C++, Python, Godot, Electron, Tauri, Qt, Java).
 
@@ -118,21 +117,21 @@ flowchart LR
 
 ## 7. Installation
 
-You can install this skill into any agent system compatible with standard Agent Skills:
+You can install this skill into any agent system that supports standard Agent Skills (such as Antigravity, Cursor, Claude Code, Codex, or custom LLM harnesses):
 
 ### Option A: Direct Git Clone
-Clone into your Agent's local or global skills directory:
+Clone this repository into your agent's supported skills directory (please refer to your specific agent or CLI's official documentation for exact lookup paths):
 
 ```bash
-# Example for Antigravity / Gemini CLI configuration
-git clone https://github.com/your-username/windows-desktop-secure-secrets.git ~/.gemini/config/skills/windows-desktop-secure-secrets
+# Example path for Antigravity / Gemini CLI configuration
+git clone https://github.com/Sue-Hsu/windows-desktop-secure-secrets.git ~/.gemini/config/skills/windows-desktop-secure-secrets
 
-# Example for Cursor or custom agent workspace
-git clone https://github.com/your-username/windows-desktop-secure-secrets.git .agents/skills/windows-desktop-secure-secrets
+# Example path for Cursor, Claude Code, or workspace configuration
+git clone https://github.com/Sue-Hsu/windows-desktop-secure-secrets.git .agents/skills/windows-desktop-secure-secrets
 ```
 
 ### Option B: Project-Level Inclusion
-Copy the repository files directly into your project's `.agent/skills/` or `skills/` directory.
+Copy the repository files directly into your project's supported skills directory (e.g., `.agents/skills/` or `skills/`).
 
 ---
 
@@ -285,8 +284,8 @@ Contributions are welcome! We appreciate improvements in:
 Special thanks to the primary contributors and AI coding partners:
 
 - **[Sue-Hsu](https://github.com/Sue-Hsu)** - Project Owner & Maintainer
-- **[Codex](https://github.com/codex)** ([OpenAI](https://openai.com/)) - Initial Skill Proposal & Architecture Specification
-- **Antigravity** ([Google DeepMind](https://deepmind.google/)) - Core Engine Development, Security Rules Implementation & Verification
+- **[Codex](https://github.com/openai/codex)** ([OpenAI](https://openai.com/)) - Initial specification assistance
+- **Antigravity** ([Google DeepMind](https://deepmind.google/)) - Implementation assistance & verification workflows
 
 ---
 

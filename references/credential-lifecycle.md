@@ -31,8 +31,8 @@ flowchart TD
 ## 2. Memory (記憶體駐留階段)
 - **風險場景**：在多數高階語言（如 C#、Java、Python、JavaScript）中，字串具備**不可變性 (String Immutability)**。一旦將 Secret 宣告為 `string`，該字串會在託管堆積 (Heap) 中長期滯留，等待 Garbage Collector 回收，期間可透過 Process Memory Dump 直接擷取。
 - **安全標準**：
-  - [x] 在 C/C++ 中，處理完敏感資料後，立即呼叫 `SecureZeroMemory` 或 `memset_s` 清除記憶體。
-  - [x] 在 C#/.NET 中，優先使用 `byte[]` 處理二進位資料並在結束後 `Array.Clear()`；或評估 `SecureString`。
+  - [x] 在 C/C++ 中，處理完敏感資料後，立即呼叫 `SecureZeroMemory` 或 `memset_s` 清除記憶體緩衝區。
+  - [x] 在現代 .NET / C# 中，**Microsoft 已不建議在新的 .NET 開發中使用 `SecureString`**（Microsoft does not recommend SecureString for new .NET development）。重點在於不建議作為現代 .NET 新開發的安全策略，而非 API 已不存在。應優先縮短明文生命週期，減少不必要的字串複製；盡量以可變緩衝區（如 `byte[]`、`Span<byte>`）承載機密資料，並在消費完畢後立即以 `Array.Clear()` 清零。同時需理解：一旦轉換為 `string`，該字串物件將留存在託管堆積中，清理 `byte[]` 僅能消除該份緩衝區，無法代表託管環境內所有明文副本均已清除。
   - [x] 避免將 Secret 宣告為全域靜態常數 (Global Static Variable) 常駐於記憶體中。
 
 ---
@@ -89,15 +89,18 @@ flowchart TD
 ## 9. Backup (系統與雲端備份)
 - **風險場景**：Windows 10/11 的 OneDrive「已知資料夾備份」或使用者第三方同步軟體會自動同步 `%APPDATA%` 或 `Documents`。若機密存為明文，會悄悄被上傳至雲端硬碟。
 - **安全標準**：
-  - [x] 採用 DPAPI CurrentUser 保存之二進位檔案，即使檔案被同步至 OneDrive 或備份至外接硬碟，因其他電腦缺乏本機 SID 與 Master Key，**攻擊者即使取得該檔案也完全無法還原解密**，具備天然備份防禦能力。
+  - [x] 採用 DPAPI `CurrentUser` 保存之加密密文，當檔案被同步至 OneDrive 或備份至外接儲存時，**能顯著降低離線洩漏風險**，因為其他電腦或未授權帳號缺乏該本機使用者之 DPAPI Master Key。但需注意這並非絕對防禦：若使用者的 Windows 帳號整體受損、使用漫遊設定檔 (Roaming Profiles) 或機器復原金鑰洩漏，加密防護可能隨之受威脅。
 
 ---
 
 ## 10. Deletion (銷毀與註銷階段)
 - **風險場景**：使用者點擊「登出」或「刪除帳號」後，軟體僅清空前端 UI 狀態，本地磁碟與 Windows 憑證庫仍殘留歷史憑證。
 - **安全標準**：
-  - [x] 呼叫 `CredDeleteW` 清除 Windows Credential Manager 項目。
-  - [x] 對於磁碟上的 DPAPI 加密二進位檔，先以隨機位元組或全 0 覆寫檔案內容後再行刪除（Secure Wipe）。
+  - [x] 呼叫 `CredDeleteW` 清除 Windows Credential Manager 憑證項。
+  - [x] 對於磁碟上的 DPAPI 加密檔案，執行正常檔案刪除（如 `File.Delete`、`fs.unlink`）作為應用程式生命週期清理。
+  - [!] **儲存媒體限制認知**：在現代 Windows、NTFS 日誌檔案系統與 SSD（具備損耗平衡 Wear Leveling 與寫入放大機制）環境下，應用層的檔案覆寫（如 WriteAllBytes 填 0）**無法保證**物理儲存層資料不可復原。因此：
+    - 若 Secret 曾經明文落地，必須依威脅模型評估外洩風險。
+    - 對於已暴露或可能受損之憑證，**唯一的可靠防禦是至伺服端進行輪替 (Rotate) 與撤銷 (Revoke)**，絕不能依賴磁碟覆寫作為安全萬靈丹。
   - [x] 通知遠端 IdP 撤銷 Token（RFC 7009）。
 
 ---
