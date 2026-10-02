@@ -61,7 +61,8 @@ Windows Credential Manager 是 Windows 提供專門管理使用者憑證（如�
 - **容量上限規範 (CRED_MAX_CREDENTIAL_BLOB_SIZE)**：
   - Windows SDK 定義其二進位上限為 `CRED_MAX_CREDENTIAL_BLOB_SIZE = 5 * 512 bytes = 2560 bytes`（**約 2.5 KB**，切勿誤記為 5 KB）。
   - **適用性**：極度適合小型 Credentials、API Key、一般長度之密碼或 Refresh Token。
-  - **溢位風險防範**：若 Token Payload 包含豐富 Claims 或大型 SAML / OIDC 封裝而超過 2560 Bytes，寫入將會失敗。此時應改用 DPAPI 加密檔案 (DPAPI-protected file) 作為持久化載體，並在寫入 Credential Manager 前主動驗證長度。
+  - **Python keyring UTF-16 編碼特性**：在 Python 生態中，`keyring` 模組的 Windows 後端（`keyring.backends.Windows.WinVaultKeyring`）會以 UTF-16 編碼儲存字串。因 UTF-16 每個字元通常佔 2 個位元組，若字串長度換算 UTF-16 超過 2560 位元組（或超過 2560 個寬字元），寫入將會引發 `KeyringError`。程式應在儲存前主動檢核長度（`len(secret.encode('utf-16-le')) <= 2560`）。
+  - **溢位風險防範**：若 Token Payload 包含豐富 Claims 或大型 SAML / OIDC 封裝而超過上限，寫入將會失敗。此時應改用 DPAPI 加密檔案 (DPAPI-protected file) 作為持久化載體。
 - **呼叫底層 API**：
   Win32 函式庫 `Advapi32.dll` 提供：
   - `CredWriteW`：寫入或更新憑證
@@ -79,6 +80,16 @@ Windows Credential Manager 是 Windows 提供專門管理使用者憑證（如�
 | **整合便利性** | 適合單一 API Key、帳密或一般長度 OAuth Refresh Token | 適合將整個 JSON 設定檔或私鑰結構加密落地 |
 | **架構模式** | `config.json` 僅記錄 `TargetName`，Secret 存於 CredMgr | 加密後的二進位 Payload 存於 `app_data/secrets.dat` |
 | **超額處理** | 若 Payload > 2.5 KB 寫入失敗，需改用 DPAPI 檔案儲存 | 天然支援任意長度 Payload |
+
+### 2.3 Windows Credential Manager 威脅模型與防護邊界
+
+- **防護邊界 (In-Scope — 顯著降低風險)**：
+  - [x] **防止離線磁碟提取 (Offline Extraction)**：磁碟被拔除或系統未登入時，憑證庫受到作業系統保護，無法直接離線提取明文。
+  - [x] **防止跨帳號存取 (Cross-User Isolation)**：不同 Windows 使用者帳號彼此隔離，無法相互讀取其專屬之 Credential Manager 項目。
+- **非防護範圍 (Out-of-Scope / Limitations — 非萬能邊界)**：
+  - [!] **同使用者權限惡意行程 (Same-User Malware)**：任何以相同 Windows 使用者帳號身分運行的程式（包括惡意軟體或未受限腳本），均可呼叫 Win32 API `CredReadW` 或 `CredEnumerateW` 讀取該使用者保存的所有憑證。
+  - [!] **缺乏程式識別驗證 (No Application Identity Enforcement)**：Windows Credential Manager 本身並不驗證「呼叫者二進位檔簽名或身分」，因此無法防範同使用者權限下的程式偽冒呼叫。
+  - [!] **結論**：不能將 Credential Manager 視為抵禦同一使用者惡意軟體的絕對防禦邊界。
 
 ---
 
@@ -116,7 +127,7 @@ try {
 }
 ```
 
-### 正確的 Fail-Closed 設計原則
+### 4.1 正確的 Fail-Closed 設計原則
 
 1. **顯式中斷與通報**：
    拋出專屬例外（如 `SecureStorageUnavailableException`），在 UI 層明確告知使用者「Windows 安全金鑰保護不可用，已終止儲存操作」，阻止不安全的持久化。
@@ -124,3 +135,25 @@ try {
    若使用者選擇繼續使用，僅將 Secret 保留於當前程式執行的 RAM 中（重啟後自動失效，使用者必須重新輸入）。**絕不允許自動將明文寫入磁碟**。
 3. **驗證預先檢查 (Health Check)**：
    在應用程式啟動時，先以測試 Payload 執行一次 DPAPI Protect/Unprotect 迴路，確認 OS 介面健康後才接納使用者輸入機密。
+
+### 4.2 DPAPI 與 Credential Manager 解密失敗處置流程 (Recovery Flow)
+
+在桌面環境中，解密失敗並不一定代表系統遭受攻擊，常源於正常系統狀態變化：
+- **觸發情境**：
+  1. **密碼重設**：使用者密碼被網域/本機管理員直接重設（非由使用者於登入畫面輸入舊密碼修改），導致 DPAPI Master Key 無法以新密碼自動解鎖。
+  2. **環境轉移**：使用者更換主機、漫遊設定檔（Roaming Profile）複製失敗、或將加密檔案直接拷貝至新設備。
+  3. **資料損毀**：儲存檔案不完整、磁區損壞或被第三方工具修改。
+
+- **標準處置步驟 (Standard Recovery Flow)**：
+  1. **精準區分「初次啟動」與「解密失敗」**：
+     - 若憑證檔案不存在（`FileNotFoundException` / `ENOENT`），視為初次未登入狀態，直接返回 `null`。
+     - 若檔案存在但解密拋出例外（`CryptographicException` / `KeyringError`），必須判定為**憑證失效（Invalidated Credential）**。
+  2. **堅守 Fail-Closed 原則**：
+     - 絕不可因為解密失敗就默默退回明文備份或嘗試寫入不安全的非加密檔案。
+  3. **引導重新驗證 (Re-Authentication Prompt)**：
+     - 攔截解密例外，向使用者友善提示：「本地安全認證已過期或失效，請重新登入」。
+  4. **清理無效/損毀憑證**：
+     - 主動呼叫刪除函式（`File.Delete` 或 `CredDeleteW`）清除無法解密的過期密文檔或損毀項目，避免重複觸發錯誤。
+  5. **重新保護與寫入**：
+     - 於使用者重新驗證成功後，取得新 Token/Password，重新調用 DPAPI / Credential Manager 進行加密寫入。
+

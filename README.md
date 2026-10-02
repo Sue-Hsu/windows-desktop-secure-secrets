@@ -117,21 +117,26 @@ flowchart LR
 
 ## 7. Installation
 
-You can install this skill into any agent system that supports standard Agent Skills (such as Antigravity, Cursor, Claude Code, Codex, or custom LLM harnesses):
+You can install this skill into AI coding assistants and agent environments that support standard Agent Skills (such as Antigravity, Claude Code, Cursor, or Codex).
 
-### Option A: Direct Git Clone
-Clone this repository into your agent's supported skills directory (please refer to your specific agent or CLI's official documentation for exact lookup paths):
+> [!NOTE]
+> Different agent systems have their own discovery paths and skill configuration conventions. Verify your specific agent's documentation for the correct target directory.
 
-```bash
-# Example path for Antigravity / Gemini CLI configuration
-git clone https://github.com/Sue-Hsu/windows-desktop-secure-secrets.git ~/.gemini/config/skills/windows-desktop-secure-secrets
+### Verified Example Paths
 
-# Example path for Cursor, Claude Code, or workspace configuration
-git clone https://github.com/Sue-Hsu/windows-desktop-secure-secrets.git .agents/skills/windows-desktop-secure-secrets
-```
-
-### Option B: Project-Level Inclusion
-Copy the repository files directly into your project's supported skills directory (e.g., `.agents/skills/` or `skills/`).
+- **Antigravity / Gemini CLI (Global)**:
+  ```bash
+  git clone https://github.com/Sue-Hsu/windows-desktop-secure-secrets.git ~/.gemini/config/skills/windows-desktop-secure-secrets
+  ```
+- **Claude Code (User / Project)**:
+  ```bash
+  # Project-level or tool-specific skill path
+  git clone https://github.com/Sue-Hsu/windows-desktop-secure-secrets.git .claude/skills/windows-desktop-secure-secrets
+  ```
+- **Cursor / General Agent Workspaces**:
+  ```bash
+  git clone https://github.com/Sue-Hsu/windows-desktop-secure-secrets.git .agents/skills/windows-desktop-secure-secrets
+  ```
 
 ---
 
@@ -148,11 +153,11 @@ Trigger the skill in your AI assistant by asking questions or providing audit pr
 
 ## 9. Example Findings
 
-All findings emitted by the skill follow an actionable format with severity, code diffs, and rotation guidance.
+All findings emitted by the skill follow an actionable format with severity, code diffs, and risk-based rotation guidance.
 
 ### Example 1: Plaintext Storage in User Directory
 
-```markdown
+````markdown
 ### [High] SEC-001: Plaintext API Key Persisted in AppData
 
 - **File / Location**: `src/config/storage.py:42`
@@ -173,12 +178,12 @@ All findings emitted by the skill follow an actionable format with severity, cod
 - **Platform / Framework Consideration**:
   Ensure the active backend is `WinVaultKeyring` and fail closed if unavailable.
 - **Rotation Required**:
-  No, provided the local machine has not been compromised and the file was never committed or backed up to an external service.
-```
+  **No** (Evaluated via Threat Model: The API key only existed on a controlled local developer disk, was never committed to Git, was never logged or backed up to cloud sync, and the host shows no indicators of compromise. However, the plaintext file must be purged and replaced with Windows Credential Manager immediately).
+````
 
 ### Example 2: Committed Credentials in Repository History
 
-```markdown
+````markdown
 ### [Critical] SEC-002: Hardcoded Production Client Secret Committed to Git
 
 - **File / Location**: `Assets/Scripts/OAuthService.cs:14`
@@ -191,7 +196,7 @@ All findings emitted by the skill follow an actionable format with severity, cod
   Migrate to OAuth 2.0 Authorization Code Flow with PKCE (Proof Key for Code Exchange) where no Client Secret is stored on the client.
 - **Rotation Required**:
   **Yes**. Revoke the compromised secret immediately in the cloud provider console and purge repository history using `git-filter-repo`.
-```
+````
 
 ---
 
@@ -206,8 +211,8 @@ This skill is designed to be **framework-agnostic**. The core principles apply u
 | **Python Desktop** (PyQt, Tkinter) | `keyring` (Windows Credential Manager) | [`examples/python-keyring.md`](examples/python-keyring.md) |
 | **Godot Engine** (4.x / 3.x) | C# `ProtectedData` or GDExtension DPAPI | [`examples/godot-credentials.md`](examples/godot-credentials.md) |
 | **C / C++** (Win32, MFC) | `CryptProtectData` (Crypt32), `CredWriteW` (Advapi32) | [`references/framework-mapping.md`](references/framework-mapping.md) |
-| **Tauri** (Rust) | `keyring` crate via Tauri IPC Commands | [`references/framework-mapping.md`](references/framework-mapping.md) |
-| **Qt** (C++ / Python) | `QtKeychain` library | [`references/framework-mapping.md`](references/framework-mapping.md) |
+| **Tauri** (Rust) | Native OS `keyring` crate (CredMgr) / `crypt32`; or `tauri-plugin-stronghold` (app-level vault) | [`references/framework-mapping.md`](references/framework-mapping.md) |
+| **Qt** (C++ / Python) | `QtKeychain` library (Windows Credential Store) | [`references/framework-mapping.md`](references/framework-mapping.md) |
 | **Java Desktop** | JNA wrapper for `Crypt32Util` | [`references/framework-mapping.md`](references/framework-mapping.md) |
 
 ---
@@ -245,11 +250,18 @@ windows-desktop-secure-secrets/
 │   ├── framework-mapping.md              # Cross-framework implementation guide
 │   ├── oauth-desktop-security.md         # Public Clients, PKCE, and desktop OAuth
 │   └── credential-lifecycle.md           # 11-stage secret lifecycle tracking
-└── examples/                             # Practical implementation examples
-    ├── dotnet-dpapi.md                   # C# / .NET implementation
-    ├── electron-safestorage.md           # Electron Main process implementation
-    ├── python-keyring.md                 # Python keyring implementation
-    └── godot-credentials.md              # Godot 4.x credential management
+├── examples/                             # Practical implementation examples
+│   ├── dotnet-dpapi.md                   # C# / .NET implementation
+│   ├── electron-safestorage.md           # Electron Main process implementation
+│   ├── python-keyring.md                 # Python keyring implementation
+│   └── godot-credentials.md              # Godot 4.x credential management
+└── evals/                                # Deterministic regression evaluation suite
+    ├── README.md                         # Evaluation suite documentation & runner guide
+    ├── test-cases.json                   # Structured test cases, expected verdicts & rotation criteria
+    └── fixtures/                         # Miniature vulnerable and compliant code fixtures
+        ├── case1_storage.py              # Case 1: Plaintext API key in AppData
+        ├── case2_oauth_service.cs        # Case 2: Hardcoded Client Secret & console logging
+        └── case3_secure_dpapi.cs         # Case 3: Compliant DPAPI CurrentUser & Fail-Closed
 ```
 
 ---

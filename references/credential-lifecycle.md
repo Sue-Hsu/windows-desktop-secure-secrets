@@ -21,10 +21,16 @@ flowchart TD
 ---
 
 ## 1. Input (輸入與導入階段)
-- **風險場景**：使用者在 UI 介面輸入 API Key 或密碼時，若使用一般單行文字方塊（Single-line TextBox），可能被螢幕錄影、路過窺視（Shoulder Surfing）或無障礙輔助工具直接讀出明文。
+- **風險場景**：
+  - 使用者在 UI 介面輸入 API Key 或密碼時，若使用一般單行文字方塊（Single-line TextBox），可能被螢幕錄影、路過窺視（Shoulder Surfing）或無障礙輔助工具直接讀出明文。
+  - **Windows 剪貼簿歷程記錄與雲端剪貼簿風險**：Windows 10/11 支援剪貼簿歷程記錄（`Win+V`，Clipboard History）與跨裝置雲端剪貼簿（Cloud Clipboard）。若使用者或應用程式將密鑰複製到剪貼簿，該字串可能常駐於系統歷程記錄或自動同步至雲端，被其他工具或同帳號裝置存取。
 - **安全標準**：
   - [x] UI 控制項強制啟用密碼模式（如 WPF `PasswordBox`、Qt `QLineEdit::Password`、Web `<input type="password">`）。
-  - [x] 限制或監控剪貼簿貼上行為；若提供複製 Token 按鈕，應提示使用者剪貼簿監控軟體風險，並在 30 秒至 1 分鐘後自動覆蓋清空系統剪貼簿。
+  - [x] **剪貼簿防護標記 (Clipboard Metadata Flags)**：若應用程式必須提供複製 Token 功能，應於剪貼簿資料加入 Windows 專用格式標記，以防止進入歷程與雲端同步：
+    - `ExcludeClipboardContentFromMonitorProcessing`：阻止剪貼簿監控程式處理。
+    - `CanIncludeInClipboardHistory`（設為 0 / DWORD 0）：阻止進入 `Win+V` 歷程列表。
+    - `CanUploadToCloudClipboard`（設為 0 / DWORD 0）：阻止同步至微軟雲端剪貼簿。
+  - [x] 限制或監控剪貼簿貼上行為；若複製敏感數值，應於 30 秒至 1 分鐘後自動覆蓋或清空剪貼簿，切勿將剪貼簿當作安全可靠的憑證傳遞管道。
 
 ---
 
@@ -106,11 +112,16 @@ flowchart TD
 ---
 
 ## 11. Rotation / Revoke (外洩輪替與撤銷)
-- **判定標準**：
-  一旦檢核發現某個 Secret 曾經：
-  - 被 Commit 進入 Git 儲存庫（即便隨後被刪除或存於舊 Commit）。
-  - 被輸出於日誌檔案、Crash Dump、公開 Issue 截圖或社群分享中。
-- **強制處置 SOP**：
+- **判定標準（依暴露風險綜合評估）**：
+  機密是否必須強制輪替，取決於實際暴露途徑與威脅情境，而非單一機械化規則：
+  - **核心評估維度**：
+    - **暴露媒介**：是否進入 Git / Git 歷史紀錄？是否寫入日誌 (Log)、Telemetry 或 Crash Dump？是否被雲端同步軟體備份？是否在公開 Issue、討論區或截圖中揭露？是否有不受控之第三方可讀取？
+    - **機密特性**：機密權限範圍（只讀 vs 具備完全管理權限）、機密有效期限（短期 Token vs 長效 API Key / 密碼）、當前是否已自然過期？
+    - **環境狀態**：暴露持續時間長短、主機是否曾遭惡意程式感染或遺失失竊？
+  - **處置判定準則**：
+    - **預設 Rotation Required = Yes**：若機密曾進入 Git 歷史、Log/Telemetry、公開分享、或不受控之外部/雲端同步，一律判定為已受侵害，必須立即輪替。
+    - **依威脅模型評估 (Threat-Model Dependent)**：若機密僅曾短暫以明文存在於本機儲存（例如未加密的 local temp/config），且能確認從未被外部同步、未被第三方存取、主機未受損且環境受控，可依威脅模型評估決定是否強制輪替（不必一律判定為 Yes），但仍須立即修正本地儲存架構。
+- **強制處置 SOP（當判定需輪替時）**：
   1. **認定妥協**：立即視該金鑰為「已完全洩漏 (Compromised)」，不得繼續信任。
   2. **伺服端撤銷 (Revoke)**：至服務控制台（如 Google Cloud Console、OpenAI Dashboard）將該 Key 立即作廢。
   3. **更換新憑證 (Rotate)**：重新產生金鑰並透過 Windows 安全機制重新寫入。

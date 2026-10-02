@@ -37,6 +37,13 @@ public partial class SecureAuthManager : Node
 
         try
         {
+            // Ensure target directory exists before writing
+            string dirPath = Path.GetDirectoryName(globalPath);
+            if (!string.IsNullOrEmpty(dirPath))
+            {
+                Directory.CreateDirectory(dirPath);
+            }
+
             byte[] cipherBytes = ProtectedData.Protect(
                 plainBytes,
                 Entropy,
@@ -73,9 +80,25 @@ public partial class SecureAuthManager : Node
             Array.Clear(plainBytes, 0, plainBytes.Length);
             return token;
         }
+        catch (CryptographicException ex)
+        {
+            // DPAPI RECOVERY FLOW GUIDANCE:
+            // Decryption failure occurs when:
+            // 1. Windows user account password was reset by an admin (breaking DPAPI master key)
+            // 2. Credential file was copied from another machine or user profile
+            // 3. Ciphertext file is corrupted on disk
+            //
+            // Recovery Strategy:
+            // - Differentiate "missing file" (normal first-run) from "decryption failure" (invalidation)
+            // - Prompt the user/player to re-authenticate or re-enter credentials
+            // - Purge corrupted/invalid credential file via DeleteAuthToken()
+            // - Encrypt and save fresh credentials upon successful re-authentication
+            GD.PrintErr($"[Security Warning] DPAPI decryption failed (invalidated or corrupted credential): {ex.Message}");
+            return null;
+        }
         catch (Exception ex)
         {
-            GD.PrintErr($"[Security Error] Failed to decrypt auth token: {ex.Message}");
+            GD.PrintErr($"[Security Error] Failed to read auth token file: {ex.Message}");
             return null;
         }
     }

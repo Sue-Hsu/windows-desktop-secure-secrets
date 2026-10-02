@@ -83,16 +83,18 @@ description: >-
    - 本地設定檔（如 `config.json`）僅保存 Credential Identifier（例如 TargetName / Username / Key ID 等 Metadata）。
    - 真正的 Secret（密碼、Token、Key）委由 Credential Manager 管理，**嚴禁在普通設定檔中備份明文副本**。
    - 容量上限為 2560 Bytes（約 2.5 KB），超長 Token 應改用 DPAPI 加密檔案。
-8. **Fail-Closed 原則（防範 Silent Fallback）**
+   - **威脅模型與邊界限制**：Credential Manager 能有效防範不同 Windows 帳號越權與離線磁碟提取，但**無法防範在同一 Windows 使用者權限下運行的惡意程式**呼叫 `CredRead`。桌面應用程式不能將其視為免疫同使用者行程侵害的絕對萬靈丹。
+8. **Fail-Closed 原則與解密失敗處置 (Recovery Flow)**
    - 當 Windows Secure Storage、DPAPI 或 Credential Manager 因環境限制、權限問題或系統服務異常而不可用時，**嚴格禁止 Silent Fallback to Plaintext**（不得靜默改存明文 JSON/INI）。
    - 必須採取 **Fail-Closed**：明確向使用者跳出錯誤提示中斷操作，或僅允許於「當前 Session Memory 暫存（應用程式重啟後即消失，需重新驗證）」，絕不得落地。
+   - **解密失敗處置流程 (Recovery Flow)**：若因 Windows 密碼重設、跨機器遷移或密文毀損導致 DPAPI / Credential Manager 解密失敗，應精準區分「檔案不存在（初次使用）」與「解密失敗（憑證失效）」。解密失敗時應堅守 Fail-Closed（絕不退回明文），提示使用者重新認證，清除已失效的損毀資料，並於重新登入後寫入新保護憑證。
 9. **全生命週期檢視 (Secret Lifecycle)**
    完整追蹤每個 Secret 的 11 節點流向：
    `Input` → `Memory` → `Storage` → `Transmission` → `Usage` → `Logging` → `Error Handling` → `Export` → `Backup` → `Deletion` → `Rotation/Revoke`。
 10. **UI 與輸出防護**
     - UI 介面輸入與顯示時必須**預設遮罩**（Masked / Password field）。
     - 除錯主控台 (Debug Console) 與例外錯誤訊息 (Exception message) 嚴禁輸出完整 Secret。
-    - 涉及剪貼簿 (Clipboard) 複製時，應明確警告使用者剪貼簿監聽風險，並建議實作短暫保留後自動清除。
+    - **剪貼簿歷程記錄與雲端剪貼簿防護**：Windows 10/11 支援剪貼簿歷程記錄（`Win+V`）與雲端剪貼簿。若應用程式提供複製 Token/密碼功能，應主動加入作業系統格式標記（如 `ExcludeClipboardContentFromMonitorProcessing`、`CanIncludeInClipboardHistory`、`CanUploadToCloudClipboard`）以防機密被記錄或同步，並在逾時（如 30-60 秒）後自動清除剪貼簿，切勿將剪貼簿當作安全暫存方式。
 11. **外洩應變機制 (Exposure Remediation)**
     - 若 Secret 曾被 Commit 至 Git、出現在 Commit History、Log、Issue 截圖或 Crash Report 中，**單純刪除檔案或修改最新 Commit 毫無安全意義**。
     - 必須遵循：**立即 Rotate / Revoke 該金鑰** → **清理 Git 歷史紀錄（如 git-filter-repo）** → **重新核發新憑證**。
@@ -160,7 +162,7 @@ flowchart LR
   - **Python**：`keyring` 套件 (Windows Credential Manager 後端)、`ctypes` 呼叫 `Crypt32.dll`
   - **Godot (GDScript / C#)**：透過 GDExtension / C# 調用 Win32 DPAPI，禁止直接依賴 `user://` 明文儲存
   - **Electron**：`safeStorage` (底層對應 Windows DPAPI)，禁止裸存於 `electron-store`
-  - **Tauri (Rust)**：`tauri-plugin-stronghold` 或 Windows-specific `winapi::crypt32` / `keyring-rs`
+  - **Tauri (Rust)**：Rust 後端推薦使用 OS 原生之 `keyring` crate (對接 Credential Manager) 或 Win32 `crypt32` DPAPI；`tauri-plugin-stronghold` 僅為應用層加密保管庫 (非 OS-backed)
   - **Qt (C++ / Python)**：呼叫 Windows Credential API 或 QtKeychain (封裝 Credential Manager)
   - **Java**：JNA / JNI 呼叫 Windows `Crypt32.dll` 或 Credential Manager API
 - 詳情請參閱 [references/framework-mapping.md](references/framework-mapping.md)。
@@ -171,7 +173,7 @@ flowchart LR
   - **Why Risky**：清楚闡述攻擊者或本地非特權行程如何利用此缺陷。
   - **Recommended Windows-Safe Direction**：指定應採取的 Windows 原生保護策略。
   - **Concrete Code Snippet**：提供可以直接落地的正確程式碼範例（絕不只給假代碼）。
-  - **Rotation Required**：評估該憑證是否已進入過磁碟或 Git，明確判定 `Yes / No`。
+  - **Rotation Required**：依暴露途徑與威脅情境綜合評估判定 `Yes / No`（Git/Log/公開/未受控同步預設 Yes；受控本機短暫明文則依威脅模型評估）。
 
 ### Phase 7 — Verification (複驗與閉環)
 - 實施修復後，依據驗證清單進行嚴格閉環檢驗：
@@ -185,7 +187,7 @@ flowchart LR
 
 ## 反模式與高危險紅線 (Red Flags & Forbidden Patterns)
 
-審查過程中若發現以下任何一項反模式，必須直接判定為 **Critical (P0) / High (P1)** 重大安全隱患：
+審查過程中若發現以下反模式，應作為觸發深入風險評估與優先審查的指標（Red Flags trigger risk-based evaluation）。最終 Severity 評級應結合機密暴露範圍、被存取可能性、以及是否影響生產環境等脈絡綜合判定（通常落於 Critical / High 範疇）：
 
 | 反模式 | 風險說明 | 正確作法 |
 |---|---|---|
@@ -220,7 +222,7 @@ flowchart LR
 - **框架考量 (Platform / Framework Consideration)**:
   針對該技術棧（如 .NET、Python、Godot 等）的特定相容性或依賴建議。
 - **需要撤銷與更換憑證 (Rotation Required)**: [Yes / No]
-  （若機密曾被寫入明文檔案、Git 歷史或 Log，一律標註為 Yes，並提供撤銷指引）。
+  （依暴露風險綜合評估：若機密曾進入 Git 歷史、Log、Telemetry、公開分享或不受控外部同步，標註為 Yes；若僅曾短暫本機明文且未外洩未受損，則依威脅模型判定，並提供撤銷指引）。
 ```
 
 ### 總結報告區塊 (Executive Summary)

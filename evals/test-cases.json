@@ -1,0 +1,53 @@
+[
+  {
+    "id": "EVAL-001",
+    "name": "Plaintext API Key in User AppData Directory",
+    "target_fixture": "evals/fixtures/case1_storage.py",
+    "expected_finding_count": 1,
+    "findings": [
+      {
+        "rule_id": "SEC-001",
+        "severity": "High",
+        "secret_type": "API Key",
+        "category": "Insecure Persistence",
+        "rotation_required": "No",
+        "rotation_rationale": "Evaluated via Threat Model: The key existed briefly on a controlled local developer machine, was never committed to Git, and was never backed up or logged externally. If machine has no malware indicators, prompt remediation to Credential Manager suffices without mandatory revocation.",
+        "recommended_fix": "Store the API key in Windows Credential Manager using the keyring package, keeping only non-secret preferences in config.json."
+      }
+    ]
+  },
+  {
+    "id": "EVAL-002",
+    "name": "Hardcoded Client Secret in Public Client and Console Logging",
+    "target_fixture": "evals/fixtures/case2_oauth_service.cs",
+    "expected_finding_count": 2,
+    "findings": [
+      {
+        "rule_id": "SEC-002",
+        "severity": "Critical",
+        "secret_type": "OAuth Client Secret",
+        "category": "Public Client Secret Misuse",
+        "rotation_required": "Yes",
+        "rotation_rationale": "Committed in source code and present in repository history for a desktop client. Client Secrets cannot remain confidential in desktop binaries.",
+        "recommended_fix": "Migrate to OAuth 2.0 Authorization Code Flow with PKCE (RFC 7636) and revoke the compromised production secret immediately."
+      },
+      {
+        "rule_id": "SEC-003",
+        "severity": "High",
+        "secret_type": "OAuth Client Secret",
+        "category": "Sensitive Data Leak in Logging",
+        "rotation_required": "Yes",
+        "rotation_rationale": "Secret is logged to standard output / console, risking retention in logging pipelines, crash dumps, and telemetry.",
+        "recommended_fix": "Sanitize console/log messages and apply structured log masking."
+      }
+    ]
+  },
+  {
+    "id": "EVAL-003",
+    "name": "Proper DPAPI CurrentUser Implementation with Fail-Closed",
+    "target_fixture": "evals/fixtures/case3_secure_dpapi.cs",
+    "expected_finding_count": 0,
+    "findings": [],
+    "pass_criteria": "Complies with Windows DPAPI CurrentUser scope, atomic temporary-file writes, in-memory buffer clearing, and fail-closed error recovery without plaintext fallback."
+  }
+]

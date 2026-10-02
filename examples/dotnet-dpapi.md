@@ -55,13 +55,32 @@ public class SecureCredentialStore
                 DataProtectionScope.CurrentUser
             );
 
-            // Write binary payload to disk - never plaintext
-            File.WriteAllBytes(_storagePath, encryptedBytes);
+            // Ensure destination directory exists before attempting write
+            string directory = Path.GetDirectoryName(_storagePath);
+            if (!string.IsNullOrEmpty(directory) && !Directory.Exists(directory))
+            {
+                Directory.CreateDirectory(directory);
+            }
+
+            // Write to temporary file first and atomically replace to avoid partial/corrupted writes on crash
+            string tempFile = _storagePath + "." + Guid.NewGuid().ToString("N") + ".tmp";
+            File.WriteAllBytes(tempFile, encryptedBytes);
+            File.Move(tempFile, _storagePath, overwrite: true);
         }
-        catch (Exception ex)
+        catch (CryptographicException ex)
         {
-            // FAIL-CLOSED: Explicit error, never fall back to plaintext file
+            // FAIL-CLOSED: Explicit error on DPAPI failure
             throw new InvalidOperationException("Failed to securely protect credential via Windows DPAPI.", ex);
+        }
+        catch (IOException ex)
+        {
+            // Filesystem / disk write failure
+            throw new InvalidOperationException("Failed to persist protected credential to disk due to an I/O error.", ex);
+        }
+        catch (UnauthorizedAccessException ex)
+        {
+            // Permission denial
+            throw new InvalidOperationException("Permission denied when writing protected credential to disk.", ex);
         }
         finally
         {
@@ -100,8 +119,18 @@ public class SecureCredentialStore
         }
         catch (CryptographicException ex)
         {
-            // Fail-closed if the key was corrupted or accessed by a different user
-            throw new InvalidOperationException("Decryption failed. The secret cannot be retrieved.", ex);
+            // RECOVERY FLOW:
+            // Decryption failures occur when:
+            // 1. The Windows user account password was reset by an admin without providing the old password.
+            // 2. The user profile or storage file was migrated to a different machine or user SID.
+            // 3. The ciphertext file was corrupted.
+            //
+            // Fail-closed: Never fall back to plaintext. Prompt the user to re-authenticate and establish
+            // a fresh credential. If needed, provide an application option to purge the invalid ciphertext.
+            throw new InvalidOperationException(
+                "Decryption failed. DPAPI binding may be invalid or corrupted; user re-authentication required.",
+                ex
+            );
         }
     }
 
@@ -126,7 +155,10 @@ public class SecureCredentialStore
 
 ## Key Highlights
 1. **Scope Selection**: Uses `DataProtectionScope.CurrentUser` so other Windows accounts on the same computer cannot decrypt the payload.
-2. **Fail-Closed**: Exceptions are thrown rather than silently continuing with plaintext files.
-3. **Entropy Clarification**: Demonstrates namespacing entropy, clearly noting it does not replace user-supplied secrets or prevent same-user malicious process inspection.
-4. **Memory Hygiene Boundaries**: Uses `Array.Clear` to zero out intermediate byte buffers, explicitly documenting that immutable strings cannot be reliably zeroized in managed runtimes.
-5. **Lifecycle Deletion**: Implements normal file removal and highlights provider-side revocation over unreliable application-level disk wiping.
+2. **Fail-Closed Principle**: Exceptions are thrown rather than silently continuing with plaintext files.
+3. **Atomic-ish Persistence**: Writes to a uniquely named temporary file before moving into place, preventing partial/corrupted ciphertext writes during unexpected application terminations.
+4. **Specific Error Differentiation**: Distinguishes `CryptographicException` from filesystem `IOException` and permission errors.
+5. **Recovery Flow Guidance**: Documents clear recovery steps (prompt for re-authentication and purge invalid ciphertext) when DPAPI decryption fails after Windows credential or profile changes.
+6. **Modern .NET Dependency**: `System.Security.Cryptography.ProtectedData` is a Windows-only API. In modern cross-platform .NET (.NET 6/7/8/9), ensure the `System.Security.Cryptography.ProtectedData` NuGet package is referenced.
+7. **Memory Hygiene Boundaries**: Uses `Array.Clear` to zero out intermediate byte buffers, explicitly documenting that immutable strings cannot be reliably zeroized in managed runtimes.
+8. **Lifecycle Deletion**: Implements normal file removal and highlights provider-side revocation over unreliable application-level disk wiping.

@@ -117,21 +117,26 @@ flowchart LR
 
 ## 7. 安裝與設定 (Installation)
 
-您可以將此技能直接導入任何相容標準 Agent Skills 規範之 AI 輔助開發工具：
+您可以將此技能直接導入任何相容標準 Agent Skills 規範之 AI 輔助開發工具（如 Antigravity、Claude Code、Cursor 或 Codex）。
 
-### 方式一：Git Clone
-將本 Repository 複製至您的 Agent 支援的技能目錄（實際路徑請依各 Agent / CLI 官方文件為準）：
+> [!NOTE]
+> 不同 AI Agent 系統具備各自獨立的技能探索機制與目錄慣例。請參閱您所使用之 Agent 官方文件以確認目標路徑。
 
-```bash
-# Antigravity / Gemini CLI 目錄路徑範例 (Example path)
-git clone https://github.com/Sue-Hsu/windows-desktop-secure-secrets.git ~/.gemini/config/skills/windows-desktop-secure-secrets
+### 已驗證之路徑範例
 
-# Cursor、Claude Code 或專案工作區路徑範例 (Example path)
-git clone https://github.com/Sue-Hsu/windows-desktop-secure-secrets.git .agents/skills/windows-desktop-secure-secrets
-```
-
-### 方式二：專案手動導入
-直接將本儲存庫中的檔案複製至您專案支援的技能資料夾中（例如 `.agents/skills/` 或 `skills/`）。
+- **Antigravity / Gemini CLI（全域目錄）**:
+  ```bash
+  git clone https://github.com/Sue-Hsu/windows-desktop-secure-secrets.git ~/.gemini/config/skills/windows-desktop-secure-secrets
+  ```
+- **Claude Code（使用者 / 專案目錄）**:
+  ```bash
+  # 專案層級或特定工具目錄路徑
+  git clone https://github.com/Sue-Hsu/windows-desktop-secure-secrets.git .claude/skills/windows-desktop-secure-secrets
+  ```
+- **Cursor / 一般 Agent 工作區**:
+  ```bash
+  git clone https://github.com/Sue-Hsu/windows-desktop-secure-secrets.git .agents/skills/windows-desktop-secure-secrets
+  ```
 
 ---
 
@@ -148,11 +153,11 @@ git clone https://github.com/Sue-Hsu/windows-desktop-secure-secrets.git .agents/
 
 ## 9. 範例報告 (Example Findings)
 
-本技能產出之所有 Finding 均採用高度結構化格式，包含嚴重度、代碼對照與金鑰更換指示（以下均為虛構示範資料）：
+本技能產出之所有 Finding 均採用高度結構化格式，包含嚴重度、代碼對照與風險評估更換指示（以下均為虛構示範資料）：
 
 ### 範例一：使用者目錄明文儲存
 
-```markdown
+````markdown
 ### [High] SEC-001: API Key 明文持久化於 AppData
 
 - **檔案位置**: `src/config/storage.py:42`
@@ -173,12 +178,12 @@ git clone https://github.com/Sue-Hsu/windows-desktop-secure-secrets.git .agents/
 - **框架考量**:
   確認 active backend 為 `WinVaultKeyring`，若不可用應採取 Fail-Closed。
 - **需要撤銷與更換憑證 (Rotation Required)**:
-  No（若確定僅存在於本機且電腦未曾失竊或外洩）。
-```
+  **No**（依威脅模型評估：該 API Key 僅短暫存在於受控本機開發者磁碟，未曾被 Commit 至 Git、未被寫入 Log 或雲端備份，且主機無受害跡象。但必須立即刪除明文檔案並遷移至憑證管理員）。
+````
 
 ### 範例二：Git 歷史洩漏機密
 
-```markdown
+````markdown
 ### [Critical] SEC-002: 生產環境 Client Secret 寫入原始碼並已 Commit
 
 - **檔案位置**: `Assets/Scripts/OAuthService.cs:14`
@@ -191,7 +196,7 @@ git clone https://github.com/Sue-Hsu/windows-desktop-secure-secrets.git .agents/
   轉移至 OAuth 2.0 Authorization Code Flow with PKCE 流程，客戶端完全不持有 Client Secret。
 - **需要撤銷與更換憑證 (Rotation Required)**:
   **Yes**。立即於服務商控制台作廢該 Secret，並使用 `git-filter-repo` 徹底抹除 Git 歷史。
-```
+````
 
 ---
 
@@ -206,8 +211,8 @@ git clone https://github.com/Sue-Hsu/windows-desktop-secure-secrets.git .agents/
 | **Python Desktop** (PyQt, Tkinter) | `keyring` (Windows Credential Manager) | [`examples/python-keyring.md`](examples/python-keyring.md) |
 | **Godot Engine** (4.x / 3.x) | C# `ProtectedData` 或 GDExtension DPAPI | [`examples/godot-credentials.md`](examples/godot-credentials.md) |
 | **C / C++** (Win32, MFC) | `CryptProtectData` (Crypt32), `CredWriteW` (Advapi32) | [`references/framework-mapping.md`](references/framework-mapping.md) |
-| **Tauri** (Rust) | `keyring` crate (於 Rust 後端調用) | [`references/framework-mapping.md`](references/framework-mapping.md) |
-| **Qt** (C++ / Python) | `QtKeychain` 函式庫 | [`references/framework-mapping.md`](references/framework-mapping.md) |
+| **Tauri** (Rust) | 原生 OS `keyring` crate (CredMgr) / `crypt32`；或 `tauri-plugin-stronghold` (應用層 vault) | [`references/framework-mapping.md`](references/framework-mapping.md) |
+| **Qt** (C++ / Python) | `QtKeychain` 函式庫 (Windows Credential Store) | [`references/framework-mapping.md`](references/framework-mapping.md) |
 | **Java Desktop** | JNA 調用 `Crypt32Util` | [`references/framework-mapping.md`](references/framework-mapping.md) |
 
 ---
@@ -245,11 +250,18 @@ windows-desktop-secure-secrets/
 │   ├── framework-mapping.md              # 跨技術棧實作對照指南
 │   ├── oauth-desktop-security.md         # 桌面 Public Client 與 PKCE 安全規範
 │   └── credential-lifecycle.md           # 11 節點憑證全生命週期追蹤
-└── examples/                             # 具體實作範例代碼
-    ├── dotnet-dpapi.md                   # C# / .NET 實作
-    ├── electron-safestorage.md           # Electron Main Process 實作
-    ├── python-keyring.md                 # Python keyring 實作
-    └── godot-credentials.md              # Godot 4.x 實作
+├── examples/                             # 具體實作範例代碼
+│   ├── dotnet-dpapi.md                   # C# / .NET 實作
+│   ├── electron-safestorage.md           # Electron Main Process 實作
+│   ├── python-keyring.md                 # Python keyring 實作
+│   └── godot-credentials.md              # Godot 4.x 實作
+└── evals/                                # 確定性回歸評估測試套件
+    ├── README.md                         # 評估套件文檔與測試指引
+    ├── test-cases.json                   # 結構化測試案例、預期判定與輪替標準
+    └── fixtures/                         # 脆弱與合規微型測試代碼
+        ├── case1_storage.py              # Case 1: AppData 明文儲存 API Key
+        ├── case2_oauth_service.cs        # Case 2: 原始碼硬編碼 Client Secret 與日誌輸出
+        └── case3_secure_dpapi.cs         # Case 3: 正確合規之 DPAPI CurrentUser 與 Fail-Closed
 ```
 
 ---

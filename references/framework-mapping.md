@@ -217,8 +217,11 @@ def dpapi_protect(data: bytes) -> bytes:
 ### 5.1 架構邊界規範
 - **前端 (Web / JS)**：嚴禁在 `localStorage` 或前端檔案系統中存放未加密機密。
 - **後端 (Rust Main Process)**：透過 Tauri Commands 代理所有機密存取。
+- **OS-backed vs 應用層 Vault 區分**：
+  - **Windows OS-backed 原生儲存（推薦）**：在 Rust 後端使用 `keyring` crate（對接 Windows Credential Manager）或直接透過 Win32 FFI 呼叫 Windows DPAPI (`crypt32-sys`)。
+  - **`tauri-plugin-stronghold`（應用層 Encrypted Vault）**：基於 IOTA Stronghold 的軟體級保險庫（使用 Argon2 與密碼衍生金鑰）。**請注意它並非 Windows OS-backed 儲存**，若專案採用此外掛，應清楚認知其屬於 application-level encrypted vault，且需妥善管理解鎖 Snapshot 所需之密碼。
 
-### 5.2 Rust 實作範例 (`keyring` crate)
+### 5.2 Rust 實作範例 (`keyring` crate - OS-backed)
 ```rust
 use keyring::Entry;
 
@@ -249,7 +252,7 @@ const path = require('path');
 
 app.whenReady().then(async () => {
     // 必須先檢查作業系統金鑰庫是否可用
-    if (!safeStorage.isEncryptionAvailable()) {
+    if (!(await safeStorage.isAsyncEncryptionAvailable())) {
         // Fail-Closed: 嚴禁 silent fallback to plaintext!
         throw new Error("Windows 安全加密庫不可用，無法安全保存憑證。");
     }
@@ -265,7 +268,12 @@ app.whenReady().then(async () => {
     async function readSecret() {
         try {
             const encryptedBuffer = await fs.readFile(secretPath);
-            return await safeStorage.decryptStringAsync(encryptedBuffer);
+            const { result, shouldReEncrypt } = await safeStorage.decryptStringAsync(encryptedBuffer);
+            if (shouldReEncrypt) {
+                const reEncryptedBuffer = await safeStorage.encryptStringAsync(result);
+                await fs.writeFile(secretPath, reEncryptedBuffer);
+            }
+            return result;
         } catch (err) {
             if (err.code === 'ENOENT') return null;
             throw err;
@@ -283,7 +291,7 @@ app.whenReady().then(async () => {
 
 ### 7.1 QtKeychain
 推薦使用開源之 `QtKeychain` 函式庫，專門為 Qt 提供跨平台金鑰儲存：
-- 在 Windows 下自動對接 Windows Credential Manager。
+- 在 Windows 下通常使用 Windows Credential Store 作為儲存後端（具體取決於編譯配置與平台支援環境，在啟用 Windows Credential Store 支援時為預設與推薦之機制）。
 - 提供非同步與同步 API：`QKeychain::WritePasswordJob` / `QKeychain::ReadPasswordJob`。
 
 ---
