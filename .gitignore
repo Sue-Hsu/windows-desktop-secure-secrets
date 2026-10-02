@@ -1,0 +1,40 @@
+# Operating System Files
+Thumbs.db
+ehthumbs.db
+Desktop.ini
+$RECYCLE.BIN/
+
+# Editor & IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# Logs & Runtime Dumps
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+
+# Environment & Secrets (Security Defense)
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+*.pfx
+*.p12
+
+# OS / Temporary files
+tmp/
+temp/
+
+# Local Agent & Workspace Documents
+GEMINI.md
+docs/
+walkthrough.md
+CHANGELOG.md
+
+
