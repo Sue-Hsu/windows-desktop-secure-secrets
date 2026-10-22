@@ -151,7 +151,28 @@ Trigger the skill in your AI assistant by asking questions or providing audit pr
 
 ---
 
-## 9. Example Findings
+## 9. Automated Scanning (Semgrep Rules)
+
+In addition to guided Agent reviews, this project ships with ready-to-run [Semgrep](https://semgrep.dev/) rules in [`rules/`](rules/) to automate static code audits for Windows desktop applications:
+
+```bash
+# Run automated scan across your desktop codebase
+semgrep scan --config ./rules/
+
+# Export JSON findings for automated AI Agent remediation
+semgrep scan --config ./rules/ --json -o audit-report.json
+```
+
+These rules enforce:
+- **SEC-001**: Detection of plaintext secrets persisted in AppData or user folders (Python, C#, JavaScript/TypeScript).
+- **SEC-002**: Embedded OAuth Client Secrets in Public Client desktop binaries (C#, Python, JavaScript/TypeScript).
+- **SEC-003**: Silent fallback to plaintext in exception handlers (C#).
+- **SEC-004**: Insecure `DataProtectionScope.LocalMachine` usage (C#).
+- **SEC-005**: Plaintext tokens and keys logged to Console or debug streams (C#).
+
+---
+
+## 10. Example Findings
 
 All findings emitted by the skill follow an actionable format with severity, code diffs, and risk-based rotation guidance.
 
@@ -200,7 +221,7 @@ All findings emitted by the skill follow an actionable format with severity, cod
 
 ---
 
-## 10. Framework Mapping
+## 11. Framework Mapping
 
 This skill is designed to be **framework-agnostic**. The core principles apply universally, while framework-specific implementations are detailed in [`references/framework-mapping.md`](references/framework-mapping.md):
 
@@ -217,7 +238,7 @@ This skill is designed to be **framework-agnostic**. The core principles apply u
 
 ---
 
-## 11. Threat Model & Limitations
+## 12. Threat Model & Limitations
 
 Understanding what OS-level security can and cannot do is essential:
 
@@ -228,7 +249,7 @@ Understanding what OS-level security can and cannot do is essential:
 
 ---
 
-## 12. Security Notes
+## 13. Security Notes
 
 - **Synthetic Examples**: Never commit real API keys, tokens, or credentials to this repository. All examples must use synthetic placeholders.
 - **Redaction**: Always mask secrets in audit outputs (e.g., `sk-ant-****xyz`).
@@ -236,7 +257,7 @@ Understanding what OS-level security can and cannot do is essential:
 
 ---
 
-## 13. Project Structure
+## 14. Project Structure
 
 ```text
 windows-desktop-secure-secrets/
@@ -245,6 +266,9 @@ windows-desktop-secure-secrets/
 ├── README.zh-TW.md                       # Traditional Chinese documentation
 ├── LICENSE                               # MIT License
 ├── .gitignore                            # Git exclusion rules
+├── rules/                                # Automated Semgrep rules for static code audit
+│   ├── README.md                         # Rule catalog & runner guide
+│   └── windows-desktop-secrets.yml       # Production Semgrep rule definitions
 ├── references/                           # Detailed technical reference guides
 │   ├── windows-secret-storage.md         # In-depth DPAPI & Credential Manager mechanics
 │   ├── framework-mapping.md              # Cross-framework implementation guide
@@ -266,7 +290,7 @@ windows-desktop-secure-secrets/
 
 ---
 
-## 14. References & Inspiration
+## 15. References & Inspiration
 
 This skill was independently developed and drew conceptual inspiration from:
 - [superagent-ai/skills](https://github.com/superagent-ai/skills) (specifically `crypto-secrets` for secrets hygiene and structured reporting).
@@ -276,13 +300,13 @@ This skill was independently developed and drew conceptual inspiration from:
 
 ---
 
-## 15. License
+## 16. License
 
 This project is licensed under the [MIT License](LICENSE).
 
 ---
 
-## 16. Contributing
+## 17. Contributing
 
 Contributions are welcome! We appreciate improvements in:
 - Additional framework mappings (e.g., Flutter Desktop, Go/Fyne).
@@ -291,7 +315,7 @@ Contributions are welcome! We appreciate improvements in:
 
 ---
 
-## 17. Contributors & Credits
+## 18. Contributors & Credits
 
 Special thanks to the primary contributors and AI coding partners:
 
@@ -301,6 +325,6 @@ Special thanks to the primary contributors and AI coding partners:
 
 ---
 
-## 18. Disclaimer
+## 19. Disclaimer
 
 This skill provides automated security guidance and review assistance. It does not replace a comprehensive professional cybersecurity audit and does not guarantee that an application is completely impervious to all attack vectors.

@@ -151,7 +151,28 @@ flowchart LR
 
 ---
 
-## 9. 範例報告 (Example Findings)
+## 9. 自動化代碼透視掃描 (Semgrep 規則集)
+
+除了手動提示詞與 Agent 審查導航外，本專案在 [`rules/`](rules/) 目錄中內建了開箱即用的 [Semgrep](https://semgrep.dev/) 自動化安全規則，專門掃描 Windows 桌面端常見的機密漏洞：
+
+```bash
+# 對專案程式碼執行全自動靜態安全掃描
+semgrep scan --config ./rules/
+
+# 產出結構化 JSON 診斷報告，供 AI Agent 直接讀取並自動修復
+semgrep scan --config ./rules/ --json -o audit-report.json
+```
+
+核心檢測項目：
+- **SEC-001**：AppData 或使用者目錄明文持久化敏感機密（Python, C#, JS/TS）。
+- **SEC-002**：桌面 Public Client 原始碼硬編碼 OAuth Client Secret（C#, Python, JS/TS）。
+- **SEC-003**：加密失敗時在 catch 區塊悄悄改存明文之 Silent Fallback 反模式（C#）。
+- **SEC-004**：個人桌面應用誤用 `DataProtectionScope.LocalMachine` 作用域（C#）。
+- **SEC-005**：在 Console 或日誌輸出中直接打印完整機密變數（C#）。
+
+---
+
+## 10. 範例報告 (Example Findings)
 
 本技能產出之所有 Finding 均採用高度結構化格式，包含嚴重度、代碼對照與風險評估更換指示（以下均為虛構示範資料）：
 
@@ -200,7 +221,7 @@ flowchart LR
 
 ---
 
-## 10. 跨技術棧對照 (Framework Mapping)
+## 11. 跨技術棧對照 (Framework Mapping)
 
 本技能核心保持**框架無關 (Framework-Agnostic)**，具體實作指引收錄於 [`references/framework-mapping.md`](references/framework-mapping.md)：
 
@@ -217,7 +238,7 @@ flowchart LR
 
 ---
 
-## 11. 威脅模型與局限性說明 (Threat Model & Limitations)
+## 12. 威脅模型與局限性說明 (Threat Model & Limitations)
 
 正確理解作業系統級防護的防衛邊界至關重要：
 
@@ -228,7 +249,7 @@ flowchart LR
 
 ---
 
-## 12. 資安注意事項 (Security Notes)
+## 13. 資安注意事項 (Security Notes)
 
 - **完全採用虛擬資料**：本儲存庫中所有範例與文檔均採用假資料，絕不包含真實金鑰。
 - **報告脫敏**：審查產出時，必須對敏感數值進行遮罩（例如 `sk-ant-****xyz`）。
@@ -236,7 +257,7 @@ flowchart LR
 
 ---
 
-## 13. 專案目錄結構 (Project Structure)
+## 14. 專案目錄結構 (Project Structure)
 
 ```text
 windows-desktop-secure-secrets/
@@ -245,6 +266,9 @@ windows-desktop-secure-secrets/
 ├── README.zh-TW.md                       # 繁體中文說明文檔
 ├── LICENSE                               # MIT 授權條款
 ├── .gitignore                            # Git 過濾規則
+├── rules/                                # 自動化 Semgrep 安全檢測規則集
+│   ├── README.md                         # 規則清單與掃描指南
+│   └── windows-desktop-secrets.yml       # 正式 Semgrep 規則定義檔
 ├── references/                           # 核心技術指引
 │   ├── windows-secret-storage.md         # DPAPI 與 Credential Manager 底層原理與威脅模型
 │   ├── framework-mapping.md              # 跨技術棧實作對照指南
@@ -266,7 +290,7 @@ windows-desktop-secure-secrets/
 
 ---
 
-## 14. 參考來源與致謝 (References & Inspiration)
+## 15. 參考來源與致謝 (References & Inspiration)
 
 本專案為獨立創作之通用技能，在設計理念上借鑑並致敬：
 - [superagent-ai/skills](https://github.com/superagent-ai/skills)（參考其 `crypto-secrets` 技能之安全衛生檢核與審查報告規範）。
@@ -276,13 +300,13 @@ windows-desktop-secure-secrets/
 
 ---
 
-## 15. 授權條款 (License)
+## 16. 授權條款 (License)
 
 本專案基於 [MIT License](LICENSE) 開源授權發布。
 
 ---
 
-## 16. 參與貢獻 (Contributing)
+## 17. 參與貢獻 (Contributing)
 
 歡迎社群夥伴提供貢獻！期待在以下領域共同完善：
 - 擴充更多框架映射（如 Flutter Desktop、Go/Fyne、Rust Native 等）。
@@ -291,7 +315,7 @@ windows-desktop-secure-secrets/
 
 ---
 
-## 17. 貢獻者與致謝 (Contributors & Credits)
+## 18. 貢獻者與致謝 (Contributors & Credits)
 
 特別致謝專案發起人與 AI 開發協作夥伴：
 
@@ -301,6 +325,6 @@ windows-desktop-secure-secrets/
 
 ---
 
-## 18. 免責聲明 (Disclaimer)
+## 19. 免責聲明 (Disclaimer)
 
 本技能提供自動化安全指導與代碼審查輔助。它不能取代全面的專業網路安全滲透測試，亦無法保證應用程式在所有未知攻擊向量下絕對安全。
