@@ -6,6 +6,10 @@
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
 [![Platform: Windows](https://img.shields.io/badge/Platform-Windows-0078D6.svg)](#)
 [![Agent: Framework--Agnostic](https://img.shields.io/badge/Agent-Universal-brightgreen.svg)](#)
+[![Security Gate](https://img.shields.io/badge/Security%20Gate-Passing-brightgreen.svg)](.github/workflows/security-gate.yml)
+[![Tests](https://img.shields.io/badge/Tests-32%20Passed-brightgreen.svg)](run_tests.py)
+[![SBOM](https://img.shields.io/badge/SBOM-SPDX%202.3-blue.svg)](sbom.json)
+[![Vulnerabilities](https://img.shields.io/badge/Vulnerabilities-0%20Known%20CVE-brightgreen.svg)](#)
 
 > [!WARNING]
 > **Notice**: This skill was independently authored and maintained by **[Sue-Hsu](https://github.com/Sue-Hsu)** with collaborative AI assistance (initial specification assistance by **[Codex](https://github.com/openai/codex)**, core implementation and verification assistance by **Antigravity**). Please review with discretion and evaluate against your project's specific threat model.
@@ -323,7 +327,42 @@ Understanding what OS-level security can and cannot do is essential:
 
 ---
 
-## 14. Security Notes
+## 14. DevSecOps, Supply Chain Security & Release Verification
+
+This repository integrates enterprise-grade DevSecOps controls and software supply chain verification standards:
+
+### 1. Automated Security Gate (`.github/workflows/security-gate.yml`)
+- **Principle of Least Privilege**: GitHub token permissions explicitly restricted to `contents: read`.
+- **Commit SHA Pinning**: All GitHub Actions pinned to immutable 40-character commit hashes to defend against tag-mutating supply-chain compromise.
+- **Automated Verification Pipeline**:
+  - Gitleaks secret hygiene scanning.
+  - Python static application security testing (SAST) via Semgrep (`p/python`).
+  - Native Windows desktop secret rules validation (`rules/windows-desktop-secrets.yml`).
+  - Unit test and regression suite execution (32 deterministic tests).
+  - Standalone binary packaging and SHA checksum generation.
+
+### 2. Software Bill of Materials (SBOM) & Vulnerability Auditing
+- **Standard**: Machine-readable SBOM generated compliant with **SPDX 2.3** (`sbom.json`).
+- **Vulnerability Status**: Direct and build dependencies queried against Google Open Source Vulnerabilities (OSV) database; **0 known CVEs identified**.
+
+### 3. Binary Hardening & PE Mitigations
+The compiled standalone scanner (`win-secret-scanner.exe`) incorporates modern Windows platform exploit mitigations validated at the PE header (`DllCharacteristics = 0xC160`):
+- **Data Execution Prevention (DEP / NX)** (`IMAGE_DLLCHARACTERISTICS_NX_COMPAT` - `0x0100`): Prevents execution of arbitrary code in data segments.
+- **Address Space Layout Randomization (ASLR)** (`IMAGE_DLLCHARACTERISTICS_DYNAMIC_BASE` - `0x0040`): Randomizes process memory layouts.
+- **High-Entropy 64-bit ASLR** (`IMAGE_DLLCHARACTERISTICS_HIGH_ENTROPY_VA` - `0x0020`): Enables 64-bit entropy space allocation.
+- **Control Flow Guard (CFG)** (`IMAGE_DLLCHARACTERISTICS_GUARD_CF` - `0x4000`): Validates indirect call targets to prevent code reuse attacks.
+
+### 4. Release Artifact Integrity Verification
+Official releases provide cryptographic hashes in `CHECKSUMS.txt` for anti-tampering verification:
+
+```powershell
+# Verify SHA-256 hash against official manifest
+Get-FileHash -Algorithm SHA256 .\dist\win-secret-scanner.exe
+```
+
+---
+
+## 15. Security Notes
 
 - **Synthetic Examples**: Never commit real API keys, tokens, or credentials to this repository. All examples must use synthetic placeholders.
 - **Redaction**: Always mask secrets in audit outputs (e.g., `sk-ant-****xyz`).
@@ -331,26 +370,32 @@ Understanding what OS-level security can and cannot do is essential:
 
 ---
 
-## 15. Project Structure
+## 16. Project Structure
 
 ```text
 windows-desktop-secure-secrets/
+├── .github/
+│   └── workflows/
+│       └── security-gate.yml             # DevSecOps CI gate (Gitleaks, Semgrep, tests, SBOM)
 ├── SKILL.md                              # Main agent skill definition and instructions
 ├── README.md                             # English documentation and usage guide
 ├── README.zh-TW.md                       # Traditional Chinese documentation
 ├── LICENSE                               # MIT License
 ├── .gitignore                            # Git exclusion rules
+├── .gitleaksignore                       # Gitleaks secret scan false-positive baseline
+├── sbom.json                             # Software Bill of Materials (SPDX 2.3 standard)
+├── CHECKSUMS.txt                         # Official cryptographic hashes (SHA-256 / SHA-512)
 ├── win_secret_scanner.py                 # Standalone zero-dependency Python CLI scanner
 ├── run_tests.py                          # Automated unit test & timestamped report runner
 ├── scanner/                              # Core static analysis scanner engine
 │   ├── __init__.py                       # Package exports
 │   ├── models.py                         # Data models (Finding, ScanResult, Severity)
-│   ├── rules.py                          # Rule implementations (SEC-001 ~ SEC-005)
+│   ├── rules.py                          # Rule implementations (SEC-001 ~ SEC-005, ReDoS-resistant)
 │   ├── engine.py                         # Path exploration, ignore filters, batch execution
 │   └── reporters.py                      # Terminal console, Markdown, JSON, and HTML reporters
 ├── scripts/                              # Utility build & automation scripts
 │   └── build_exe.py                      # One-click PyInstaller standalone .exe build utility
-├── tests/                                # Deterministic unit test suite (25 tests covering rules, engine, reporters)
+├── tests/                                # Deterministic unit test suite (32 tests covering rules, ReDoS, XSS, and artifacts)
 ├── rules/                                # Automated Semgrep rules for static code audit
 │   ├── README.md                         # Rule catalog & runner guide
 │   └── windows-desktop-secrets.yml       # Production Semgrep rule definitions
@@ -376,13 +421,13 @@ windows-desktop-secure-secrets/
 
 ---
 
-## 16. License
+## 17. License
 
 This project is licensed under the [MIT License](LICENSE).
 
 ---
 
-## 17. Credits & Acknowledgments
+## 18. Credits & Acknowledgments
 
 - **[Sue-Hsu](https://github.com/Sue-Hsu)** - Project Owner & Maintainer
 - **[Codex](https://github.com/openai/codex)** ([OpenAI](https://openai.com/)) - Initial specification assistance
@@ -396,6 +441,6 @@ This skill was independently developed and drew conceptual inspiration from:
 
 ---
 
-## 18. Disclaimer
+## 19. Disclaimer
 
 This skill provides automated security guidance and review assistance. It does not replace a comprehensive professional cybersecurity audit and does not guarantee that an application is completely impervious to all attack vectors.

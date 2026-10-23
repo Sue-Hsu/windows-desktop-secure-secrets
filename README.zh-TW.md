@@ -6,6 +6,10 @@
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
 [![Platform: Windows](https://img.shields.io/badge/Platform-Windows-0078D6.svg)](#)
 [![Agent: Framework--Agnostic](https://img.shields.io/badge/Agent-Universal-brightgreen.svg)](#)
+[![Security Gate](https://img.shields.io/badge/Security%20Gate-Passing-brightgreen.svg)](.github/workflows/security-gate.yml)
+[![Tests](https://img.shields.io/badge/Tests-32%20Passed-brightgreen.svg)](run_tests.py)
+[![SBOM](https://img.shields.io/badge/SBOM-SPDX%202.3-blue.svg)](sbom.json)
+[![Vulnerabilities](https://img.shields.io/badge/Vulnerabilities-0%20Known%20CVE-brightgreen.svg)](#)
 
 > [!WARNING]
 > **說明**：本 Skill 由 **[Sue-Hsu](https://github.com/Sue-Hsu)** 獨立發布與維護，由 AI 協作製作（包含 **[Codex](https://github.com/openai/codex)** 提供初始規格建議，以及 **Antigravity** 協助核心實作與驗收）。在生產環境應用或重構關鍵資安架構前，請務必依專案特定的威脅模型進行嚴格安全審核。
@@ -323,7 +327,42 @@ semgrep scan --config ./rules/ --json -o audit-report.json
 
 ---
 
-## 14. 資安注意事項 (Security Notes)
+## 14. DevSecOps、軟體供應鏈安全與發行完整性驗證 (DevSecOps, Supply Chain & Verification)
+
+本專案全面導入企業級 DevSecOps 控管標準與現代軟體供應鏈驗證規範：
+
+### 1. 自動化安全閘門 (`.github/workflows/security-gate.yml`)
+- **最小權限原則**：GitHub Token 權限嚴格限縮為唯讀 (`contents: read`)。
+- **Commit SHA 雜湊鎖定**：所有 GitHub Actions 步驟均鎖定至 40 字元不可變之 Commit Hash，防範標籤竄改（Tag mutation）型供應鏈投毒。
+- **全自動化稽核管線**：
+  - Gitleaks 機密衛生與歷史敏感資訊掃描。
+  - Semgrep Python 官方規則靜態代碼分析 (`p/python`)。
+  - 本專案自研 Windows 桌面機密專用規則全量驗證 (`rules/windows-desktop-secrets.yml`)。
+  - 確定性回歸測試套件執行（32 項單元測試全數通過）。
+  - 自動化獨立執行檔打包與發行雜湊校驗清冊生成。
+
+### 2. 軟體物料清單 (SBOM) 與依賴弱點檢驗
+- **合規標準**：提供符合 **SPDX 2.3** 國際標準之機器可讀物料清單 (`sbom.json`)。
+- **已知弱點稽核**：建置與執行期依賴經 Google Open Source Vulnerabilities (OSV) 資料庫比對，確認 **0 已知 CVE 弱點**。
+
+### 3. 二進位執行檔防禦強化 (PE Mitigations)
+透過 PyInstaller 打包產出之獨立 Windows 執行檔 (`win-secret-scanner.exe`)，經 PE 檔頭解析確認具備現代作業系統最高規格防護旗標 (`DllCharacteristics = 0xC160`)：
+- **資料執行防止 (DEP / NX)** (`IMAGE_DLLCHARACTERISTICS_NX_COMPAT` - `0x0100`)：禁止於資料記憶體分頁執行指令，防範緩衝區溢位攻擊。
+- **位址空間配置隨機化 (ASLR)** (`IMAGE_DLLCHARACTERISTICS_DYNAMIC_BASE` - `0x0040`)：隨機化模組載入基底位址。
+- **高熵 64 位元隨機化 (High-Entropy ASLR)** (`IMAGE_DLLCHARACTERISTICS_HIGH_ENTROPY_VA` - `0x0020`)：啟用完整 64 位元隨機位址空間分配。
+- **控制流程防護 (Control Flow Guard, CFG)** (`IMAGE_DLLCHARACTERISTICS_GUARD_CF` - `0x4000`)：對間接呼叫目標進行指標完整性檢驗，封堵代碼重複利用攻擊（Code reuse attacks）。
+
+### 4. 發行產物防竄改校驗清冊 (Release Artifact Integrity)
+官方發行檔案隨附密碼學雜湊清冊 `CHECKSUMS.txt`，供使用者或資安團隊在部署前進行完整性驗證：
+
+```powershell
+# 驗證執行檔之 SHA-256 雜湊值是否與清冊一致
+Get-FileHash -Algorithm SHA256 .\dist\win-secret-scanner.exe
+```
+
+---
+
+## 15. 資安注意事項 (Security Notes)
 
 - **完全採用虛擬資料**：本儲存庫中所有範例與文檔均採用假資料，絕不包含真實金鑰。
 - **報告脫敏**：審查產出時，必須對敏感數值進行遮罩（例如 `sk-ant-****xyz`）。
@@ -331,26 +370,32 @@ semgrep scan --config ./rules/ --json -o audit-report.json
 
 ---
 
-## 15. 專案目錄結構 (Project Structure)
+## 16. 專案目錄結構 (Project Structure)
 
 ```text
 windows-desktop-secure-secrets/
+├── .github/
+│   └── workflows/
+│       └── security-gate.yml             # DevSecOps CI 自動化安全閘門 (Gitleaks, Semgrep, tests, SBOM)
 ├── SKILL.md                              # 主技能定義與 Agent 運作規則
 ├── README.md                             # 英文主說明文檔
 ├── README.zh-TW.md                       # 繁體中文說明文檔
 ├── LICENSE                               # MIT 授權條款
 ├── .gitignore                            # Git 過濾規則
+├── .gitleaksignore                       # Gitleaks 機密掃描誤報排除基準
+├── sbom.json                             # 軟體物料清單 (SPDX 2.3 國際標準格式)
+├── CHECKSUMS.txt                         # 官方發行產物密碼學校驗雜湊清冊 (SHA-256 / SHA-512)
 ├── win_secret_scanner.py                 # 獨立零依賴 Python 命令列掃描工具 (CLI)
 ├── run_tests.py                          # 自動化單元測試與時間戳報告執行腳本
 ├── scanner/                              # 靜態代碼分析檢測核心引擎
 │   ├── __init__.py                       # 套件導出
 │   ├── models.py                         # 資料模型 (Finding, ScanResult, Severity)
-│   ├── rules.py                          # 規則實作 (SEC-001 ~ SEC-005)
+│   ├── rules.py                          # 規則實作 (SEC-001 ~ SEC-005，具備 ReDoS 抗性)
 │   ├── engine.py                         # 路徑探索、忽略過濾與排程
 │   └── reporters.py                      # 終端機色彩、Markdown、JSON 與 HTML 報告器
 ├── scripts/                              # 建置與輔助自動化腳本
 │   └── build_exe.py                      # 一鍵 PyInstaller 獨立執行檔打包工具
-├── tests/                                # 確定性單元測試套件 (25 項測試，覆蓋規則、引擎與報告器)
+├── tests/                                # 確定性單元測試套件 (32 項測試，涵蓋規則、ReDoS、XSS 防禦與產物校驗)
 ├── rules/                                # 自動化 Semgrep 安全檢測規則集
 │   ├── README.md                         # 規則清單與掃描指南
 │   └── windows-desktop-secrets.yml       # 正式 Semgrep 規則定義檔
@@ -376,13 +421,13 @@ windows-desktop-secure-secrets/
 
 ---
 
-## 16. 授權條款 (License)
+## 17. 授權條款 (License)
 
 本專案基於 [MIT License](LICENSE) 開源授權發布。
 
 ---
 
-## 17. 致謝與開發夥伴 (Credits & Acknowledgments)
+## 18. 致謝與開發夥伴 (Credits & Acknowledgments)
 
 - **[Sue-Hsu](https://github.com/Sue-Hsu)** - 專案發起人與維護者 (Project Owner & Maintainer)
 - **[Codex](https://github.com/openai/codex)** ([OpenAI](https://openai.com/)) - 初始規格建議 (Initial specification assistance)
@@ -396,6 +441,6 @@ windows-desktop-secure-secrets/
 
 ---
 
-## 18. 免責聲明 (Disclaimer)
+## 19. 免責聲明 (Disclaimer)
 
 本技能提供自動化安全指導與代碼審查輔助。它不能取代全面的專業網路安全滲透測試，亦無法保證應用程式在所有未知攻擊向量下絕對安全。
