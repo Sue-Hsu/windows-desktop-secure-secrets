@@ -1,0 +1,62 @@
+name: Security & Quality Gate
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
+
+permissions:
+  contents: read
+
+jobs:
+  security-and-tests:
+    name: Security Scan & Test Suite
+    runs-on: windows-latest
+    timeout-minutes: 15
+
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          fetch-depth: 0
+
+      - name: Set up Python 3.12
+        uses: actions/setup-python@42375524e23c412d93fb67b49958b491fce71c38 # v5.4.0
+        with:
+          python-version: "3.12"
+
+      - name: Run Unit Tests & Evals Regression
+        run: |
+          python run_tests.py
+
+      - name: Run Gitleaks Secret Detection
+        run: |
+          # Download and run Gitleaks on Windows runner
+          $gitleaksVer = "8.30.1"
+          Invoke-WebRequest -Uri "https://github.com/gitleaks/gitleaks/releases/download/v$gitleaksVer/gitleaks_${gitleaksVer}_windows_x64.zip" -OutFile "gitleaks.zip"
+          Expand-Archive -Path "gitleaks.zip" -DestinationPath "$env:RUNNER_TEMP\gitleaks" -Force
+          & "$env:RUNNER_TEMP\gitleaks\gitleaks.exe" detect --source . --verbose --no-banner
+
+      - name: Install Semgrep & PyInstaller
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install semgrep pyinstaller
+
+      - name: Run Semgrep SAST & Custom Ruleset Validation
+        run: |
+          # 1. Validate custom rules syntax
+          semgrep --validate --config rules/
+          # 2. Run custom desktop security rules on test fixtures
+          semgrep scan --config rules/ evals/fixtures/
+          # 3. Run official Python security rules on scanner engine
+          semgrep scan --config p/python scanner/ win_secret_scanner.py
+
+      - name: Verify Executable Packaging
+        run: |
+          python scripts/build_exe.py
+          if (!(Test-Path "dist/win-secret-scanner.exe")) {
+            Write-Error "Build output dist/win-secret-scanner.exe was not created!"
+            exit 1
+          }
+          Write-Host "Executable built and verified successfully."

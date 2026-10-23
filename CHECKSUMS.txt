@@ -1,0 +1,9 @@
+# Release Checksums for win-secret-scanner v1.4.0
+# Target: dist/win-secret-scanner.exe
+# Algorithm: SHA-256 and SHA-512
+
+# SHA-256:
+c9343caf205594b92b0e03cee5b0eb3aecd18a1bc0ad79eb4c36e587ba5615c4  dist/win-secret-scanner.exe
+
+# SHA-512:
+97810f9c7bce3fdf0a997ed63fcffb1a442a30f7b15c5b90b3effaf7f538d9eb98cd2ee6af03414ef5bdb75426cbcc48186a4b1cd4bf35534b6620b08681d123  dist/win-secret-scanner.exe

@@ -1,0 +1,73 @@
+{
+  "spdxVersion": "SPDX-2.3",
+  "dataLicense": "CC0-1.0",
+  "SPDXID": "SPDXRef-DOCUMENT",
+  "name": "windows-desktop-secure-secrets-SBOM",
+  "documentNamespace": "https://github.com/Sue-Hsu/windows-desktop-secure-secrets/spdxdocs/sbom-1.4.0",
+  "creationInfo": {
+    "created": "2026-10-23T16:19:55Z",
+    "creators": [
+      "Tool: project-sec-advisor-v1.0.4",
+      "Person: Sue-Hsu"
+    ]
+  },
+  "packages": [
+    {
+      "SPDXID": "SPDXRef-Package-Core",
+      "name": "windows-desktop-secure-secrets",
+      "versionInfo": "1.4.0",
+      "downloadLocation": "git+https://github.com/Sue-Hsu/windows-desktop-secure-secrets.git@1a40513",
+      "licenseConcluded": "MIT",
+      "licenseDeclared": "MIT",
+      "copyrightText": "Copyright (c) 2026 Sue-Hsu",
+      "description": "Windows Desktop Secret and Credential Security Agent Skill and Static Analysis Tool"
+    },
+    {
+      "SPDXID": "SPDXRef-Package-PyInstaller",
+      "name": "pyinstaller",
+      "versionInfo": "6.22.3",
+      "downloadLocation": "https://pypi.org/project/pyinstaller/6.22.3/",
+      "licenseConcluded": "GPL-2.0-or-later WITH Bootloader-Exception",
+      "supplier": "Organization: PyInstaller Development Team",
+      "externalRefs": [
+        {
+          "referenceCategory": "PACKAGE-MANAGER",
+          "referenceType": "purl",
+          "referenceLocator": "pkg:pypi/pyinstaller@6.22.3"
+        }
+      ]
+    },
+    {
+      "SPDXID": "SPDXRef-Package-Semgrep",
+      "name": "semgrep",
+      "versionInfo": "1.181.0",
+      "downloadLocation": "https://pypi.org/project/semgrep/1.181.0/",
+      "licenseConcluded": "LGPL-2.1-only",
+      "supplier": "Organization: Semgrep, Inc.",
+      "externalRefs": [
+        {
+          "referenceCategory": "PACKAGE-MANAGER",
+          "referenceType": "purl",
+          "referenceLocator": "pkg:pypi/semgrep@1.181.0"
+        }
+      ]
+    }
+  ],
+  "relationships": [
+    {
+      "spdxElementId": "SPDXRef-DOCUMENT",
+      "relationshipType": "DESCRIBES",
+      "relatedSpdxElement": "SPDXRef-Package-Core"
+    },
+    {
+      "spdxElementId": "SPDXRef-Package-Core",
+      "relationshipType": "BUILD_DEPENDENCY_OF",
+      "relatedSpdxElement": "SPDXRef-Package-PyInstaller"
+    },
+    {
+      "spdxElementId": "SPDXRef-Package-Core",
+      "relationshipType": "TEST_DEPENDENCY_OF",
+      "relatedSpdxElement": "SPDXRef-Package-Semgrep"
+    }
+  ]
+}
