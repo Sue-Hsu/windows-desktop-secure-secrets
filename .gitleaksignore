@@ -1,0 +1,5 @@
+# Gitleaks ignore list for known test fixtures and unit tests
+# Fingerprints of mock test credentials used for testing the scanner engine
+341f71a9a3a331205c4c6ba31fc38e5d68e16fd5:tests/test_rules_csharp.py:generic-api-key:34
+341f71a9a3a331205c4c6ba31fc38e5d68e16fd5:tests/test_rules_python.py:generic-api-key:48
+37f3e8c3424b54403876652ca3169c7799ee21cd:evals/fixtures/case2_oauth_service.cs:generic-api-key:9
