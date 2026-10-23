@@ -17,8 +17,8 @@ SECRET_KEY_PATTERN = re.compile(
 
 # Rule 002: Hardcoded Client Secret pattern
 CLIENT_SECRET_ASSIGNMENT_PATTERN = re.compile(
-    r"(?:(?:private|public|protected|internal|static|readonly|const|var|let|const|\b)\s+)*"
-    r"(?P<varname>[A-Za-z0-9_]*(?:client_?secret|app_?secret)[A-Za-z0-9_]*)"
+    r"(?:\b(?:private|public|protected|internal|static|readonly|const|var|let)\s+)*"
+    r"(?P<varname>\b[A-Za-z0-9_]*?(?:client_?secret|app_?secret)[A-Za-z0-9_]*)"
     r"\s*[:=]\s*[\"'](?P<val>[^\"']+)[\"']",
     re.IGNORECASE
 )
