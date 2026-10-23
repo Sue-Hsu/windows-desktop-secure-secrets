@@ -262,6 +262,7 @@ semgrep scan --config ./rules/ --json -o audit-report.json
 ## 模組化技術指引 (Modular References)
 
 深入細節請參閱隨附之核心技術文檔：
+- [敏感資料儲存決策流程與常見認知誤區速查 (Cheat Sheet)](references/cheat-sheet.md)
 - [Windows 底層儲存機制原理與限制 (DPAPI & Credential Manager)](references/windows-secret-storage.md)
 - [跨框架實作指南 (Godot, .NET, C++, Python, Electron, Tauri, Qt, Java)](references/framework-mapping.md)
 - [OAuth 桌面安全、Public Client 與 PKCE 防護指南](references/oauth-desktop-security.md)

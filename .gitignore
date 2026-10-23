@@ -51,9 +51,13 @@ build/
 *.exe
 *.bin
 
-# Scanner Generated Reports
+# Scanner & Test Generated Reports
 audit-report.md
 audit-report.json
+audit-report_*
+test-report_*
+tests/reports/
+
 
 
 

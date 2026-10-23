@@ -9,6 +9,7 @@ Repository: https://github.com/Sue-Hsu/windows-desktop-secure-secrets
 """
 
 import argparse
+import datetime
 import sys
 from pathlib import Path
 
@@ -29,9 +30,9 @@ sys.path.insert(0, str(Path(__file__).parent.resolve()))
 
 from scanner.engine import ScanEngine
 from scanner.models import Severity
-from scanner.reporters import ConsoleReporter, MarkdownReporter, JsonReporter
+from scanner.reporters import ConsoleReporter, MarkdownReporter, JsonReporter, HtmlReporter
 
-VERSION = "1.3.0"
+VERSION = "1.4.0"
 
 
 def parse_args():
@@ -48,7 +49,7 @@ def parse_args():
     parser.add_argument(
         "-f",
         "--format",
-        choices=["console", "markdown", "json"],
+        choices=["console", "markdown", "json", "html"],
         default="console",
         help="Output report format (default: console).",
     )
@@ -96,59 +97,79 @@ def should_fail(result, threshold: str) -> bool:
 def run_interactive_mode():
     """Interactive GUI-like console mode for users who double-click the .exe."""
     print("=" * 72)
-    print("  Windows Desktop Secret & Credential Security Scanner (v1.3.0)")
+    print(f"  Windows Desktop Secret & Credential Security Scanner ({VERSION})")
     print("  https://github.com/Sue-Hsu/windows-desktop-secure-secrets")
     print("=" * 72)
     print("[說明] 本工具專為檢測 Windows 桌面應用中的機密儲存與憑證安全而設計。")
     print("       支援 Python (.py), C# (.cs), JavaScript/TypeScript (.js, .ts) 等。\n")
 
     while True:
+        while True:
+            try:
+                raw_path = input("請輸入欲掃描的專案目錄或檔案路徑\n(可直接從檔案總管將資料夾拖曳進此視窗，按 Enter 預設掃描當前目錄):\n> ").strip()
+            except (KeyboardInterrupt, EOFError):
+                print("\n已離開程式。")
+                return
+
+            # Strip surrounding quotes if dragged & dropped from Windows Explorer
+            clean_path = raw_path.strip("\"'")
+            if not clean_path:
+                clean_path = "."
+
+            target_path = Path(clean_path).resolve()
+            if not target_path.exists():
+                print(f"\n[錯誤] 找不到指定路徑: {clean_path}，請重新輸入。\n")
+                continue
+            break
+
+        print(f"\n開始掃描目標: {target_path}")
+        print("掃描進行中，請稍候...\n")
+
+        engine = ScanEngine()
         try:
-            raw_path = input("請輸入欲掃描的專案目錄或檔案路徑\n(可直接從檔案總管將資料夾拖曳進此視窗，按 Enter 預設掃描當前目錄):\n> ").strip()
+            result = engine.scan_path(str(target_path))
+        except Exception as err:
+            print(f"[錯誤] 掃描時發生例外: {err}")
+            result = None
+
+        if result:
+            # Display console report
+            reporter = ConsoleReporter(use_color=True)
+            reporter.report(result, out=sys.stdout)
+
+            # Offer to export HTML & Markdown report
+            now_str = datetime.datetime.now().strftime("%Y%m%d%H%M")
+            default_dir = target_path if target_path.is_dir() else target_path.parent
+            html_file = default_dir / f"audit-report_{now_str}.html"
+            md_file = default_dir / f"audit-report_{now_str}.md"
+
+            prompt_msg = "是否匯出審查報告 (HTML 與 Markdown)？(Y/n): "
+            try:
+                choice = input(prompt_msg).strip().lower()
+                if choice in ("", "y", "yes"):
+                    with open(html_file, "w", encoding="utf-8") as f:
+                        HtmlReporter().report(result, out=f)
+                    with open(md_file, "w", encoding="utf-8") as f:
+                        MarkdownReporter().report(result, out=f)
+                    print(f"\n[已儲存] HTML 審查報告: {html_file}")
+                    print(f"[已儲存] Markdown 報告: {md_file}")
+            except Exception as err:
+                print(f"[警告] 匯出報告失敗: {err}")
+
+        # Post-scan options: Continue scanning or Exit
+        print("\n" + "=" * 72)
+        print("請選擇下一步操作：")
+        print("  [1] 繼續掃描其他資料夾 (預設，按 Enter 直接繼續)")
+        print("  [2] 離開程式 (輸入 2 或 q)")
+        try:
+            next_action = input("> ").strip().lower()
+            if next_action in ("2", "q", "quit", "exit"):
+                print("\n感謝使用，程式已關閉。")
+                break
+            print("\n" + "-" * 72 + "\n")
         except (KeyboardInterrupt, EOFError):
-            print("\n已取消作業。")
-            return
-
-        # Strip surrounding quotes if dragged & dropped from Windows Explorer
-        clean_path = raw_path.strip("\"'")
-        if not clean_path:
-            clean_path = "."
-
-        target_path = Path(clean_path).resolve()
-        if not target_path.exists():
-            print(f"\n[錯誤] 找不到指定路徑: {clean_path}，請重新輸入。\n")
-            continue
-        break
-
-    print(f"\n開始掃描目標: {target_path}")
-    print("掃描進行中，請稍候...\n")
-
-    engine = ScanEngine()
-    try:
-        result = engine.scan_path(str(target_path))
-    except Exception as err:
-        print(f"[錯誤] 掃描時發生例外: {err}")
-        input("\n請按 Enter 鍵關閉視窗...")
-        return
-
-    # Display console report
-    reporter = ConsoleReporter(use_color=True)
-    reporter.report(result, out=sys.stdout)
-
-    # Offer to export Markdown report if findings exist
-    if result.total_findings > 0:
-        try:
-            choice = input("是否將詳細報告另存為 audit-report.md？(y/N): ").strip().lower()
-            if choice in ("y", "yes"):
-                report_file = target_path / "audit-report.md" if target_path.is_dir() else target_path.parent / "audit-report.md"
-                with open(report_file, "w", encoding="utf-8") as f:
-                    MarkdownReporter().report(result, out=f)
-                print(f"[已儲存] 審查報告已產出至: {report_file}")
-        except Exception:
-            pass
-
-    print("\n" + "=" * 72)
-    input("[掃描完成] 請按 Enter 鍵關閉視窗...")
+            print("\n已離開程式。")
+            break
 
 
 def main():
@@ -160,6 +181,7 @@ def main():
 
     # Standard CLI mode for command line, scripts, and CI/CD pipelines
     args = parse_args()
+    now_str = datetime.datetime.now().strftime("%Y%m%d%H%M")
 
     engine = ScanEngine()
     try:
@@ -173,6 +195,8 @@ def main():
         reporter = JsonReporter()
     elif args.format == "markdown":
         reporter = MarkdownReporter()
+    elif args.format == "html":
+        reporter = HtmlReporter()
     else:
         reporter = ConsoleReporter(use_color=not args.no_color)
 
@@ -182,8 +206,15 @@ def main():
         out_path.parent.mkdir(parents=True, exist_ok=True)
         with open(out_path, "w", encoding="utf-8") as f:
             reporter.report(result, out=f)
-        if args.format == "console":
+        if args.format != "console":
             print(f"Report written to {out_path}")
+    elif args.format in ("markdown", "html", "json"):
+        # Auto timestamp filename when format requested without -o
+        ext = "html" if args.format == "html" else ("md" if args.format == "markdown" else "json")
+        out_path = Path(f"audit-report_{now_str}.{ext}").resolve()
+        with open(out_path, "w", encoding="utf-8") as f:
+            reporter.report(result, out=f)
+        print(f"Report written to {out_path}")
     else:
         reporter.report(result, out=sys.stdout)
 

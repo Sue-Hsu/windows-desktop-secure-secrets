@@ -30,7 +30,7 @@ DPAPI_LOCALMACHINE_PATTERN = re.compile(
 
 # Rule 005: Secret in logging / Console pattern
 LOG_SECRET_PATTERN = re.compile(
-    r"(?:Console\.(?:WriteLine|Write)|Debug\.WriteLine|logger\.(?:debug|info|warn|error)|print)\s*\("
+    r"(?:Console\.(?:WriteLine|Write)|Debug\.WriteLine|logger\.(?:debug|info|warn|error)|console\.(?:log|debug|info|warn|error)|print)\s*\("
     r"[^\)]*(?:client_?secret|api_?key|password|access_?token|refresh_?token|credential)",
     re.IGNORECASE
 )

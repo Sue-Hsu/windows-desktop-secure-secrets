@@ -46,7 +46,36 @@ This skill provides automated guidance to systematically identify and eradicate 
 
 ---
 
-## 3. Scope
+## 3. Secret Storage Decision Flow (Decision Tree)
+
+Follow this decision tree to determine the appropriate storage mechanism for sensitive data:
+
+```mermaid
+flowchart TD
+    Start["Data to persist locally"] --> Q1{"Would unauthorized exposure<br>lead to impersonation,<br>financial loss, or data breach?"}
+    
+    Q1 -- "No<br>(Theme, window layout, audio volume)" --> A1["【Standard File Storage】<br>config.json / SQLite / INI<br>No encryption required"]
+    
+    Q1 -- "Yes<br>(Credentials, Tokens, API Keys, Private Keys)" --> Q2{"Is this an OAuth 2.0<br>Client Secret?"}
+    
+    Q2 -- "Yes" --> A2["【Do Not Store on Desktop】<br>Desktop applications are Public Clients; binaries can be decompiled.<br>Adopt OAuth PKCE flow (RFC 7636)<br>or delegate exchange to a backend service (BFF)"]
+    
+    Q2 -- "No" --> Q3{"Is this a long-lived<br>cryptographic private key or cert?<br>(e.g. Code signing, client certificate)"}
+    
+    Q3 -- "Yes" --> A3["【Windows Certificate Store / CNG】<br>Store in Windows Certificate Store<br>or isolate via TPM 2.0 hardware"]
+    
+    Q3 -- "No<br>(Common API keys, passwords, bearer tokens)" --> Q4{"Is payload length under 2.5 KB?<br>(CRED_MAX_CREDENTIAL_BLOB_SIZE = 2560 Bytes)"}
+    
+    Q4 -- "Yes<br>(Username/Password, single API Key, short Token)" --> A4["【Windows Credential Manager】<br>API: CredWrite / keyring"]
+    
+    Q4 -- "No<br>(Lengthy OAuth token chains, composite config)" --> A5["【DPAPI-Protected File】<br>Encrypt with DPAPI CurrentUser<br>before writing ciphertext to AppData<br>API: CryptProtectData / ProtectedData"]
+```
+
+> 📖 **Reference Guide**: For storage technical specifications, common security misconceptions, fail-closed handling rules, language snippets, and scan guidance, see [`references/cheat-sheet.md`](references/cheat-sheet.md).
+
+---
+
+## 4. Scope
 
 ### What This Skill Covers
 - Secret inventory, classification, and sensitivity tiering.
@@ -66,7 +95,7 @@ This skill provides automated guidance to systematically identify and eradicate 
 
 ---
 
-## 4. Supported Use Cases
+## 5. Supported Use Cases
 
 - **AI-Powered Desktop Applications**: Safely storing LLM provider API keys entered by end users.
 - **Desktop Clients with Cloud Authentication**: Securely managing OAuth 2.0 Access and Refresh Tokens for Google, GitHub, or enterprise IdPs.
@@ -76,7 +105,7 @@ This skill provides automated guidance to systematically identify and eradicate 
 
 ---
 
-## 5. How the Skill Works (7-Phase Workflow)
+## 6. How the Skill Works (7-Phase Workflow)
 
 When this skill is triggered, the AI Agent follows a structured 7-phase audit workflow:
 
@@ -100,7 +129,7 @@ flowchart LR
 
 ---
 
-## 6. Core Security Principles
+## 7. Core Security Principles
 
 1. **AppData is Storage, Not a Sandbox**: User data directories offer filesystem separation, not cryptographic defense.
 2. **Never Persist Plaintext Secrets**: Any secret capable of authentication must never touch disk unencrypted.
@@ -115,14 +144,21 @@ flowchart LR
 
 ---
 
-## 7. Installation
+## 8. Installation & Getting Started
 
-You can install this skill into AI coding assistants and agent environments that support standard Agent Skills (such as Antigravity, Claude Code, Cursor, or Codex).
+Choose the approach that best fits your workflow:
 
-> [!NOTE]
-> Different agent systems have their own discovery paths and skill configuration conventions. Verify your specific agent's documentation for the correct target directory.
+### Option 1: Direct Executable Download (Recommended for Quick Scans)
+If you simply want to scan and audit your Windows desktop projects, **you do NOT need to clone the entire repository or install Python**:
+1. Download the standalone portable binary from **[GitHub Releases](https://github.com/Sue-Hsu/windows-desktop-secure-secrets/releases)**:
+   👉 **`win-secret-scanner.exe`**
+2. Double-click to run in Windows Explorer.
+3. Drag-and-drop any project folder into the terminal window to run an instant scan and generate HTML/Markdown reports.
 
-### Verified Example Paths
+---
+
+### Option 2: Install as an AI Agent Skill
+If you want AI coding assistants (such as Antigravity, Claude Code, Cursor, or Codex) to automatically apply these Windows security rules and review secret lifecycles during development, clone the repository into your agent's skill directory:
 
 - **Antigravity / Gemini CLI (Global)**:
   ```bash
@@ -140,7 +176,7 @@ You can install this skill into AI coding assistants and agent environments that
 
 ---
 
-## 8. Usage
+## 9. Usage
 
 Trigger the skill in your AI assistant by asking questions or providing audit prompts:
 
@@ -151,7 +187,7 @@ Trigger the skill in your AI assistant by asking questions or providing audit pr
 
 ---
 
-## 9. Automated Static Security Scanning
+## 10. Automated Static Security Scanning
 
 To enable deterministic verification and CI/CD integration, this project provides two complementary automated scanning approaches:
 
@@ -183,8 +219,8 @@ pip install pyinstaller
 # Run one-click build script
 python scripts/build_exe.py
 ```
-- **Interactive Double-Click Mode**: When launched directly from Windows Explorer (no CLI arguments), `win-secret-scanner.exe` automatically enters an interactive console mode—supporting folder drag-and-drop, one-click `audit-report.md` export, and window pause so results never flash and disappear.
-- **Automated CLI Mode**: When invoked with arguments in a terminal or CI/CD pipeline, it runs non-interactively with standard exit codes.
+- **Interactive Double-Click Mode**: When launched directly from Windows Explorer (no CLI arguments), `win-secret-scanner.exe` automatically enters an interactive console mode—supporting folder drag-and-drop, one-click export of timestamped HTML and Markdown reports (`audit-report_yyyyMMddHHmm.html` / `.md`), and continuous scanning menu options (`[1] Continue scanning` / `[2] Exit`).
+- **Automated CLI Mode**: When invoked with arguments in a terminal or CI/CD pipeline (supporting `-f html`, `-f markdown`, `-f json`), it runs non-interactively with standard exit codes.
 *(Note: Binary executables are excluded from Git version control via `.gitignore` to maintain repository cleanliness).*
 
 ---
@@ -210,7 +246,7 @@ Both engines enforce consistent vulnerability rules:
 
 ---
 
-## 10. Example Findings
+## 11. Example Findings
 
 All findings emitted by the skill follow an actionable format with severity, code diffs, and risk-based rotation guidance.
 
@@ -259,7 +295,7 @@ All findings emitted by the skill follow an actionable format with severity, cod
 
 ---
 
-## 11. Framework Mapping
+## 12. Framework Mapping
 
 This skill is designed to be **framework-agnostic**. The core principles apply universally, while framework-specific implementations are detailed in [`references/framework-mapping.md`](references/framework-mapping.md):
 
@@ -276,7 +312,7 @@ This skill is designed to be **framework-agnostic**. The core principles apply u
 
 ---
 
-## 12. Threat Model & Limitations
+## 13. Threat Model & Limitations
 
 Understanding what OS-level security can and cannot do is essential:
 
@@ -287,7 +323,7 @@ Understanding what OS-level security can and cannot do is essential:
 
 ---
 
-## 13. Security Notes
+## 14. Security Notes
 
 - **Synthetic Examples**: Never commit real API keys, tokens, or credentials to this repository. All examples must use synthetic placeholders.
 - **Redaction**: Always mask secrets in audit outputs (e.g., `sk-ant-****xyz`).
@@ -295,7 +331,7 @@ Understanding what OS-level security can and cannot do is essential:
 
 ---
 
-## 14. Project Structure
+## 15. Project Structure
 
 ```text
 windows-desktop-secure-secrets/
@@ -317,6 +353,7 @@ windows-desktop-secure-secrets/
 │   ├── README.md                         # Rule catalog & runner guide
 │   └── windows-desktop-secrets.yml       # Production Semgrep rule definitions
 ├── references/                           # Detailed technical reference guides
+│   ├── cheat-sheet.md                    # Pragmatic decision tree & anti-pattern cheat sheet
 │   ├── windows-secret-storage.md         # In-depth DPAPI & Credential Manager mechanics
 │   ├── framework-mapping.md              # Cross-framework implementation guide
 │   ├── oauth-desktop-security.md         # Public Clients, PKCE, and desktop OAuth

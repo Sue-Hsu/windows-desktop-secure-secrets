@@ -46,7 +46,36 @@ Windows 桌面應用程式經常需要持久化保存各類機密資料，包含
 
 ---
 
-## 3. 範疇與邊界 (Scope)
+## 3. 敏感資料儲存決策流程 (Decision Tree)
+
+遇到敏感資料儲存需求時，依此流程判定存放位置與安全機制：
+
+```mermaid
+flowchart TD
+    Start["待儲存資料"] --> Q1{"資料若洩漏，<br>是否會導致身分冒用、<br>金錢損失或隱私外洩？"}
+    
+    Q1 -- "否<br>(UI主題/視窗尺寸/音量/公開端點)" --> A1["【標準檔案儲存】<br>config.json / SQLite / INI<br>無須加密"]
+    
+    Q1 -- "是<br>(帳密/Token/API Key/私鑰)" --> Q2{"是否為 OAuth 2.0 的<br>Client Secret？"}
+    
+    Q2 -- "是" --> A2["【不可存於桌面端】<br>桌面應用為 Public Client，二進位檔可被反編譯。<br>改採 OAuth PKCE 流程 (RFC 7636)<br>或由後端服務 (BFF) 代為交換"]
+    
+    Q2 -- "否" --> Q3{"是否為長期使用之<br>密碼學私鑰或憑證？<br>(如代碼簽名、客戶端認證)"}
+    
+    Q3 -- "是" --> A3["【Windows 憑證存放區 / CNG】<br>存入 Windows Certificate Store<br>或結合 TPM 2.0 硬體隔離保護"]
+    
+    Q3 -- "否<br>(一般 Token / 密碼 / API Key)" --> Q4{"資料長度是否小於 2.5 KB？<br>(CRED_MAX_CREDENTIAL_BLOB_SIZE = 2560 Bytes)"}
+    
+    Q4 -- "是<br>(帳號密碼/單一 API Key/短 Token)" --> A4["【Windows 認證管理員】<br>Windows Credential Manager<br>API: CredWrite / keyring"]
+    
+    Q4 -- "否<br>(長字串 Token/複合連線設定)" --> A5["【DPAPI 加密檔案】<br>使用 DPAPI (CurrentUser) 加密為密文後<br>寫入 AppData 或指定路徑<br>API: CryptProtectData / ProtectedData"]
+```
+
+> 📖 **決策速查表與操作指南**：包含儲存方案技術規格、常見認知誤區、解密失敗處置原則、各語言調用範例，以及掃描執行與結果分析指引，請參閱 [`references/cheat-sheet.md`](references/cheat-sheet.md)。
+
+---
+
+## 4. 範疇與邊界 (Scope)
 
 ### 本技能涵蓋範疇
 - 機密盤點、分類與敏感等級劃分。
@@ -66,7 +95,7 @@ Windows 桌面應用程式經常需要持久化保存各類機密資料，包含
 
 ---
 
-## 4. 支援的使用情境 (Supported Use Cases)
+## 5. 支援的使用情境 (Supported Use Cases)
 
 - **AI 驅動型桌面工具**：安全儲存使用者自行輸入的各類 LLM Provider API Key。
 - **具備雲端驗證之桌面客戶端**：安全管理 Google、GitHub 或企業 IdP 之 OAuth Access/Refresh Token。
@@ -76,7 +105,7 @@ Windows 桌面應用程式經常需要持久化保存各類機密資料，包含
 
 ---
 
-## 5. 審查作業流程：7 階段程序 (How the Skill Works)
+## 6. 審查作業流程：7 階段程序 (How the Skill Works)
 
 當觸發本技能時，AI Agent 將嚴格遵循 7 階段標準程序執行審查：
 
@@ -100,7 +129,7 @@ flowchart LR
 
 ---
 
-## 6. 核心安全原則 (Core Security Principles)
+## 7. 核心安全原則 (Core Security Principles)
 
 1. **使用者目錄不等於安全沙盒**：`AppData` 僅提供檔案隔離，無密碼學保護。
 2. **禁止明文持久化機密**：任何具備身分代表性之憑證嚴禁明文寫入磁碟。
@@ -115,14 +144,21 @@ flowchart LR
 
 ---
 
-## 7. 安裝與設定 (Installation)
+## 8. 安裝與快速開始 (Installation & Getting Started)
 
-您可以將此技能直接導入任何相容標準 Agent Skills 規範之 AI 輔助開發工具（如 Antigravity、Claude Code、Cursor 或 Codex）。
+本專案支援兩種務實的使用方式，請依您的需求選擇：
 
-> [!NOTE]
-> 不同 AI Agent 系統具備各自獨立的技能探索機制與目錄慣例。請參閱您所使用之 Agent 官方文件以確認目標路徑。
+### 途徑一：直接下載免安裝執行檔（最推薦，免裝 Python、不用 Git）
+如果您只是想對自己或團隊的桌面專案進行安全體檢，**完全不需要下載整個 GitHub 原始碼倉庫**：
+1. 前往 **[GitHub Releases](https://github.com/Sue-Hsu/windows-desktop-secure-secrets/releases)** 下載最新版的單一綠色執行檔：
+   👉 **`win-secret-scanner.exe`**
+2. 下載後直接在 Windows 檔案總管**連點兩下打開**。
+3. 把欲檢查的專案資料夾拖曳進黑底視窗，按 Enter 即可完成掃描並自動產出 HTML 與 Markdown 審查報告。
 
-### 已驗證之路徑範例
+---
+
+### 途徑二：導入 AI Agent 作為安全技能 (Agent Skill)
+如果您希望將本專案裝進 AI 編程助手（如 Antigravity、Claude Code、Cursor 或 Codex），讓 AI 在平常寫程式、架構設計或審查 Pull Request 時自動具備 Windows 憑證安全防護規範，請 clone 本倉庫至對應的技能目錄：
 
 - **Antigravity / Gemini CLI（全域目錄）**:
   ```bash
@@ -140,7 +176,7 @@ flowchart LR
 
 ---
 
-## 8. 使用方式 (Usage)
+## 9. 使用方式 (Usage)
 
 在您的 AI Agent 對話框中輸入相關指示即可自動觸發本技能：
 
@@ -151,7 +187,7 @@ flowchart LR
 
 ---
 
-## 9. 自動化靜態安全掃描 (Automated Security Scanning)
+## 10. 自動化靜態安全掃描 (Automated Security Scanning)
 
 為支援確定性驗證、CI/CD 整合以及 AI Agent 的自動化修復閉環，本專案提供兩種雙軌並行的自動化靜態程式碼掃描方案：
 
@@ -183,8 +219,8 @@ pip install pyinstaller
 # 執行一鍵建置打包腳本
 python scripts/build_exe.py
 ```
-- **滑鼠雙擊互動模式 (Interactive Mode)**：在 Windows 檔案總管直接連點兩下打開時，視窗不會閃退，會自動進入友善互動介面，支援**直接將專案資料夾拖曳進視窗**、一鍵匯出 `audit-report.md` 報告，並於結尾停留等待確認。
-- **自動化命令列模式 (CLI Mode)**：在終端機或 CI/CD 管道中帶參數呼叫時，維持標準無阻塞 CLI 行為與狀態退出碼。
+- **滑鼠雙擊互動模式 (Interactive Mode)**：在 Windows 檔案總管直接連點兩下打開時，視窗不會閃退，會自動進入友善互動介面，支援**直接將專案資料夾拖曳進視窗**、一鍵匯出帶時間戳的 HTML 與 Markdown 雙格式報告（`audit-report_yyyyMMddHHmm.html` / `.md`），並支援「[1] 繼續掃描其他資料夾」與「[2] 離開程式」選單，連續體檢多個專案。
+- **自動化命令列模式 (CLI Mode)**：在終端機或 CI/CD 管道中帶參數呼叫時（支援 `-f html`、`-f markdown`、`-f json`），維持標準無阻塞 CLI 行為與狀態退出碼。
 *(注意：產出的 `.exe` 二進位執行檔已由 `.gitignore` 自動過濾，嚴禁提交進 Git 版控，以維持專案純淨)*
 
 ---
@@ -210,7 +246,7 @@ semgrep scan --config ./rules/ --json -o audit-report.json
 
 ---
 
-## 10. 範例報告 (Example Findings)
+## 11. 範例報告 (Example Findings)
 
 本技能產出之所有 Finding 均採用高度結構化格式，包含嚴重度、代碼對照與風險評估更換指示（以下均為虛構示範資料）：
 
@@ -259,7 +295,7 @@ semgrep scan --config ./rules/ --json -o audit-report.json
 
 ---
 
-## 11. 跨技術棧對照 (Framework Mapping)
+## 12. 跨技術棧對照 (Framework Mapping)
 
 本技能核心保持**框架無關 (Framework-Agnostic)**，具體實作指引收錄於 [`references/framework-mapping.md`](references/framework-mapping.md)：
 
@@ -276,7 +312,7 @@ semgrep scan --config ./rules/ --json -o audit-report.json
 
 ---
 
-## 12. 威脅模型與局限性說明 (Threat Model & Limitations)
+## 13. 威脅模型與局限性說明 (Threat Model & Limitations)
 
 正確理解作業系統級防護的防衛邊界至關重要：
 
@@ -287,7 +323,7 @@ semgrep scan --config ./rules/ --json -o audit-report.json
 
 ---
 
-## 13. 資安注意事項 (Security Notes)
+## 14. 資安注意事項 (Security Notes)
 
 - **完全採用虛擬資料**：本儲存庫中所有範例與文檔均採用假資料，絕不包含真實金鑰。
 - **報告脫敏**：審查產出時，必須對敏感數值進行遮罩（例如 `sk-ant-****xyz`）。
@@ -295,7 +331,7 @@ semgrep scan --config ./rules/ --json -o audit-report.json
 
 ---
 
-## 14. 專案目錄結構 (Project Structure)
+## 15. 專案目錄結構 (Project Structure)
 
 ```text
 windows-desktop-secure-secrets/
@@ -317,6 +353,7 @@ windows-desktop-secure-secrets/
 │   ├── README.md                         # 規則清單與掃描指南
 │   └── windows-desktop-secrets.yml       # 正式 Semgrep 規則定義檔
 ├── references/                           # 核心技術指引
+│   ├── cheat-sheet.md                    # 一頁紙務實決策樹與避坑速查表
 │   ├── windows-secret-storage.md         # DPAPI 與 Credential Manager 底層原理與威脅模型
 │   ├── framework-mapping.md              # 跨技術棧實作對照指南
 │   ├── oauth-desktop-security.md         # 桌面 Public Client 與 PKCE 安全規範
