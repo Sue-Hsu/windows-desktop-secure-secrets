@@ -341,19 +341,21 @@ windows-desktop-secure-secrets/
 ├── LICENSE                               # MIT License
 ├── .gitignore                            # Git exclusion rules
 ├── win_secret_scanner.py                 # Standalone zero-dependency Python CLI scanner
+├── run_tests.py                          # Automated unit test & timestamped report runner
 ├── scanner/                              # Core static analysis scanner engine
 │   ├── __init__.py                       # Package exports
 │   ├── models.py                         # Data models (Finding, ScanResult, Severity)
 │   ├── rules.py                          # Rule implementations (SEC-001 ~ SEC-005)
 │   ├── engine.py                         # Path exploration, ignore filters, batch execution
-│   └── reporters.py                      # Terminal console, Markdown, and JSON reporters
+│   └── reporters.py                      # Terminal console, Markdown, JSON, and HTML reporters
 ├── scripts/                              # Utility build & automation scripts
 │   └── build_exe.py                      # One-click PyInstaller standalone .exe build utility
+├── tests/                                # Deterministic unit test suite (25 tests covering rules, engine, reporters)
 ├── rules/                                # Automated Semgrep rules for static code audit
 │   ├── README.md                         # Rule catalog & runner guide
 │   └── windows-desktop-secrets.yml       # Production Semgrep rule definitions
 ├── references/                           # Detailed technical reference guides
-│   ├── cheat-sheet.md                    # Pragmatic decision tree & anti-pattern cheat sheet
+│   ├── cheat-sheet.md                    # Sensitive data storage decision flow & misconception guide
 │   ├── windows-secret-storage.md         # In-depth DPAPI & Credential Manager mechanics
 │   ├── framework-mapping.md              # Cross-framework implementation guide
 │   ├── oauth-desktop-security.md         # Public Clients, PKCE, and desktop OAuth
@@ -374,41 +376,26 @@ windows-desktop-secure-secrets/
 
 ---
 
-## 15. References & Inspiration
-
-This skill was independently developed and drew conceptual inspiration from:
-- [superagent-ai/skills](https://github.com/superagent-ai/skills) (specifically `crypto-secrets` for secrets hygiene and structured reporting).
-- [agents-inc/skills](https://github.com/agents-inc/skills) (specifically `desktop-storage-electron` for architectural separation of preferences and credentials).
-
-*Note: This project is independently authored and is not affiliated with or endorsed by those repositories.*
-
----
-
 ## 16. License
 
 This project is licensed under the [MIT License](LICENSE).
 
 ---
 
-## 17. Contributing
-
-Contributions are welcome! We appreciate improvements in:
-- Additional framework mappings (e.g., Flutter Desktop, Go/Fyne).
-- Nuanced threat model considerations and mitigation patterns.
-- Expanded automated test patterns and verification checklists.
-
----
-
-## 18. Contributors & Credits
-
-Special thanks to the primary contributors and AI coding partners:
+## 17. Credits & Acknowledgments
 
 - **[Sue-Hsu](https://github.com/Sue-Hsu)** - Project Owner & Maintainer
 - **[Codex](https://github.com/openai/codex)** ([OpenAI](https://openai.com/)) - Initial specification assistance
 - **Antigravity** ([Google DeepMind](https://deepmind.google/)) - Implementation assistance & verification workflows
 
+### References & Inspiration
+This skill was independently developed and drew conceptual inspiration from:
+- [superagent-ai/skills](https://github.com/superagent-ai/skills) (specifically `crypto-secrets` for secrets hygiene and structured reporting).
+- [agents-inc/skills](https://github.com/agents-inc/skills) (specifically `desktop-storage-electron` for architectural separation of preferences and credentials).  
+*(Note: This project is independently authored and is not affiliated with or endorsed by those repositories).*
+
 ---
 
-## 19. Disclaimer
+## 18. Disclaimer
 
 This skill provides automated security guidance and review assistance. It does not replace a comprehensive professional cybersecurity audit and does not guarantee that an application is completely impervious to all attack vectors.

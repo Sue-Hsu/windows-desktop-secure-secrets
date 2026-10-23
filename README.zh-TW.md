@@ -341,19 +341,21 @@ windows-desktop-secure-secrets/
 ├── LICENSE                               # MIT 授權條款
 ├── .gitignore                            # Git 過濾規則
 ├── win_secret_scanner.py                 # 獨立零依賴 Python 命令列掃描工具 (CLI)
+├── run_tests.py                          # 自動化單元測試與時間戳報告執行腳本
 ├── scanner/                              # 靜態代碼分析檢測核心引擎
 │   ├── __init__.py                       # 套件導出
 │   ├── models.py                         # 資料模型 (Finding, ScanResult, Severity)
 │   ├── rules.py                          # 規則實作 (SEC-001 ~ SEC-005)
 │   ├── engine.py                         # 路徑探索、忽略過濾與排程
-│   └── reporters.py                      # 終端機色彩、Markdown 與 JSON 報告器
+│   └── reporters.py                      # 終端機色彩、Markdown、JSON 與 HTML 報告器
 ├── scripts/                              # 建置與輔助自動化腳本
 │   └── build_exe.py                      # 一鍵 PyInstaller 獨立執行檔打包工具
+├── tests/                                # 確定性單元測試套件 (25 項測試，覆蓋規則、引擎與報告器)
 ├── rules/                                # 自動化 Semgrep 安全檢測規則集
 │   ├── README.md                         # 規則清單與掃描指南
 │   └── windows-desktop-secrets.yml       # 正式 Semgrep 規則定義檔
 ├── references/                           # 核心技術指引
-│   ├── cheat-sheet.md                    # 一頁紙務實決策樹與避坑速查表
+│   ├── cheat-sheet.md                    # 敏感資料儲存決策流程與常見認知誤區速查
 │   ├── windows-secret-storage.md         # DPAPI 與 Credential Manager 底層原理與威脅模型
 │   ├── framework-mapping.md              # 跨技術棧實作對照指南
 │   ├── oauth-desktop-security.md         # 桌面 Public Client 與 PKCE 安全規範
@@ -374,41 +376,26 @@ windows-desktop-secure-secrets/
 
 ---
 
-## 15. 參考來源與致謝 (References & Inspiration)
-
-本專案為獨立創作之通用技能，在設計理念上借鑑並致敬：
-- [superagent-ai/skills](https://github.com/superagent-ai/skills)（參考其 `crypto-secrets` 技能之安全衛生檢核與審查報告規範）。
-- [agents-inc/skills](https://github.com/agents-inc/skills)（抽取其 `desktop-storage-electron` 技能中關於「一般偏好與機密隔離儲存」之桌面架構精神）。
-
-*聲明：本專案為獨立開發，與上述專案無附屬或背書關係。*
-
----
-
 ## 16. 授權條款 (License)
 
 本專案基於 [MIT License](LICENSE) 開源授權發布。
 
 ---
 
-## 17. 參與貢獻 (Contributing)
-
-歡迎社群夥伴提供貢獻！期待在以下領域共同完善：
-- 擴充更多框架映射（如 Flutter Desktop、Go/Fyne、Rust Native 等）。
-- 補充更多 Windows 原生安全威脅模型分析與防禦樣式。
-- 完善測試用例與自動化檢查清單。
-
----
-
-## 18. 貢獻者與致謝 (Contributors & Credits)
-
-特別致謝專案發起人與 AI 開發協作夥伴：
+## 17. 致謝與開發夥伴 (Credits & Acknowledgments)
 
 - **[Sue-Hsu](https://github.com/Sue-Hsu)** - 專案發起人與維護者 (Project Owner & Maintainer)
 - **[Codex](https://github.com/openai/codex)** ([OpenAI](https://openai.com/)) - 初始規格建議 (Initial specification assistance)
 - **Antigravity** ([Google DeepMind](https://deepmind.google/)) - 核心實作協助與驗收流程 (Implementation assistance & verification)
 
+### 參考來源
+本專案為獨立創作之通用技能，在設計理念上借鑑並致敬：
+- [superagent-ai/skills](https://github.com/superagent-ai/skills)（參考其 `crypto-secrets` 技能之安全衛生檢核與審查報告規範）。
+- [agents-inc/skills](https://github.com/agents-inc/skills)（抽取其 `desktop-storage-electron` 技能中關於「一般偏好與機密隔離儲存」之桌面架構精神）。  
+*(聲明：本專案為獨立開發，與上述專案無附屬或背書關係)*
+
 ---
 
-## 19. 免責聲明 (Disclaimer)
+## 18. 免責聲明 (Disclaimer)
 
 本技能提供自動化安全指導與代碼審查輔助。它不能取代全面的專業網路安全滲透測試，亦無法保證應用程式在所有未知攻擊向量下絕對安全。
