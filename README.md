@@ -151,19 +151,57 @@ Trigger the skill in your AI assistant by asking questions or providing audit pr
 
 ---
 
-## 9. Automated Scanning (Semgrep Rules)
+## 9. Automated Static Security Scanning
 
-In addition to guided Agent reviews, this project ships with ready-to-run [Semgrep](https://semgrep.dev/) rules in [`rules/`](rules/) to automate static code audits for Windows desktop applications:
+To enable deterministic verification and CI/CD integration, this project provides two complementary automated scanning approaches:
+
+### Option A: Standalone Python CLI (`win-secret-scanner`)
+
+A zero-dependency, standalone static analysis tool built entirely on the Python standard library. It requires no third-party package installation and can run directly or be compiled into a portable `.exe`:
+
+```bash
+# Direct run with Python (zero external dependencies)
+python win_secret_scanner.py path/to/your/project
+
+# Generate structured JSON report (ideal for AI Agent closed-loop remediation)
+python win_secret_scanner.py path/to/your/project --format json -o audit-report.json
+
+# Generate GitHub Flavored Markdown report
+python win_secret_scanner.py path/to/your/project --format markdown -o audit-report.md
+
+# Set custom exit code threshold (critical, high, medium, low, none)
+python win_secret_scanner.py path/to/your/project --fail-on high
+```
+
+#### Portable Binary Packaging (.exe) & Interactive Mode
+You can package the scanner into a standalone green executable (`dist/win-secret-scanner.exe`) via PyInstaller:
+
+```bash
+# Install PyInstaller if not already present
+pip install pyinstaller
+
+# Run one-click build script
+python scripts/build_exe.py
+```
+- **Interactive Double-Click Mode**: When launched directly from Windows Explorer (no CLI arguments), `win-secret-scanner.exe` automatically enters an interactive console mode—supporting folder drag-and-drop, one-click `audit-report.md` export, and window pause so results never flash and disappear.
+- **Automated CLI Mode**: When invoked with arguments in a terminal or CI/CD pipeline, it runs non-interactively with standard exit codes.
+*(Note: Binary executables are excluded from Git version control via `.gitignore` to maintain repository cleanliness).*
+
+---
+
+### Option B: Semgrep Ruleset (`rules/`)
+
+For teams with existing [Semgrep](https://semgrep.dev/) pipelines, preconfigured production rules are provided in [`rules/`](rules/):
 
 ```bash
 # Run automated scan across your desktop codebase
 semgrep scan --config ./rules/
 
-# Export JSON findings for automated AI Agent remediation
+# Export JSON findings for automated CI/CD processing
 semgrep scan --config ./rules/ --json -o audit-report.json
 ```
 
-These rules enforce:
+Both engines enforce consistent vulnerability rules:
 - **SEC-001**: Detection of plaintext secrets persisted in AppData or user folders (Python, C#, JavaScript/TypeScript).
 - **SEC-002**: Embedded OAuth Client Secrets in Public Client desktop binaries (C#, Python, JavaScript/TypeScript).
 - **SEC-003**: Silent fallback to plaintext in exception handlers (C#).
@@ -266,6 +304,15 @@ windows-desktop-secure-secrets/
 ├── README.zh-TW.md                       # Traditional Chinese documentation
 ├── LICENSE                               # MIT License
 ├── .gitignore                            # Git exclusion rules
+├── win_secret_scanner.py                 # Standalone zero-dependency Python CLI scanner
+├── scanner/                              # Core static analysis scanner engine
+│   ├── __init__.py                       # Package exports
+│   ├── models.py                         # Data models (Finding, ScanResult, Severity)
+│   ├── rules.py                          # Rule implementations (SEC-001 ~ SEC-005)
+│   ├── engine.py                         # Path exploration, ignore filters, batch execution
+│   └── reporters.py                      # Terminal console, Markdown, and JSON reporters
+├── scripts/                              # Utility build & automation scripts
+│   └── build_exe.py                      # One-click PyInstaller standalone .exe build utility
 ├── rules/                                # Automated Semgrep rules for static code audit
 │   ├── README.md                         # Rule catalog & runner guide
 │   └── windows-desktop-secrets.yml       # Production Semgrep rule definitions

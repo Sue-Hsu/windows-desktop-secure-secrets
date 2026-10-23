@@ -234,6 +234,31 @@ flowchart LR
 
 ---
 
+## 自動化靜態程式碼檢測 (Automated Static Scanning)
+
+本技能提供兩種雙軌並行的自動化靜態程式碼檢測工具，AI Agent 或開發者可直接呼叫執行，獲取結構化漏洞報告並進行閉環修復：
+
+### 1. 獨立命令列掃描工具 (`win_secret_scanner.py`)
+純 Python 標準庫實作，零外部依賴，支援終端彩色、Markdown 與結構化 JSON 輸出：
+```bash
+# 執行快速掃描並產出結構化 JSON
+python win_secret_scanner.py . --format json -o audit-report.json
+
+# 執行並產出 Markdown 報告
+python win_secret_scanner.py . --format markdown -o audit-report.md
+```
+*(亦可透過 `python scripts/build_exe.py` 一鍵打包為獨立二進位檔 `dist/win-secret-scanner.exe`)*
+
+### 2. Semgrep 規則集 (`rules/`)
+適合整合現有 Semgrep CI/CD 流程：
+```bash
+semgrep scan --config ./rules/ --json -o audit-report.json
+```
+
+兩者均覆蓋 SEC-001 ~ SEC-005 之核心安全漏洞檢測。
+
+---
+
 ## 模組化技術指引 (Modular References)
 
 深入細節請參閱隨附之核心技術文檔：

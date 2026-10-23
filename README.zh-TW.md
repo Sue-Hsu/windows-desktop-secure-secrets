@@ -151,19 +151,57 @@ flowchart LR
 
 ---
 
-## 9. 自動化代碼透視掃描 (Semgrep 規則集)
+## 9. 自動化靜態安全掃描 (Automated Security Scanning)
 
-除了手動提示詞與 Agent 審查導航外，本專案在 [`rules/`](rules/) 目錄中內建了開箱即用的 [Semgrep](https://semgrep.dev/) 自動化安全規則，專門掃描 Windows 桌面端常見的機密漏洞：
+為支援確定性驗證、CI/CD 整合以及 AI Agent 的自動化修復閉環，本專案提供兩種雙軌並行的自動化靜態程式碼掃描方案：
+
+### 途徑 A：獨立命令列掃描工具 (`win-secret-scanner`)
+
+完全基於 Python 標準庫打造的零依賴獨立靜態分析工具。無需額外安裝任何第三方套件即可直接執行，或編譯為綠色獨立執行檔：
 
 ```bash
-# 對專案程式碼執行全自動靜態安全掃描
+# 直接使用 Python 執行（零外部套件依賴）
+python win_secret_scanner.py path/to/your/project
+
+# 產出結構化 JSON 診斷報告（最適合 AI Agent 自動讀取並執行自動化修復閉環）
+python win_secret_scanner.py path/to/your/project --format json -o audit-report.json
+
+# 產出 GitHub 風格之 Markdown 審查報告
+python win_secret_scanner.py path/to/your/project --format markdown -o audit-report.md
+
+# 自訂錯誤退出碼門檻（critical, high, medium, low, none）
+python win_secret_scanner.py path/to/your/project --fail-on high
+```
+
+#### 綠色執行檔打包 (.exe) 與雙擊互動模式
+透過內建的一鍵打包腳本，可利用 PyInstaller 將掃描器打包成免安裝的單一二進位執行檔（`dist/win-secret-scanner.exe`）：
+
+```bash
+# 若環境未安裝 PyInstaller 可先安裝
+pip install pyinstaller
+
+# 執行一鍵建置打包腳本
+python scripts/build_exe.py
+```
+- **滑鼠雙擊互動模式 (Interactive Mode)**：在 Windows 檔案總管直接連點兩下打開時，視窗不會閃退，會自動進入友善互動介面，支援**直接將專案資料夾拖曳進視窗**、一鍵匯出 `audit-report.md` 報告，並於結尾停留等待確認。
+- **自動化命令列模式 (CLI Mode)**：在終端機或 CI/CD 管道中帶參數呼叫時，維持標準無阻塞 CLI 行為與狀態退出碼。
+*(注意：產出的 `.exe` 二進位執行檔已由 `.gitignore` 自動過濾，嚴禁提交進 Git 版控，以維持專案純淨)*
+
+---
+
+### 途徑 B：Semgrep 規則集 (`rules/`)
+
+若團隊已有 [Semgrep](https://semgrep.dev/) CI/CD 流程，可直接採用專案內建於 [`rules/`](rules/) 的開箱即用規則：
+
+```bash
+# 對專案程式碼執行 Semgrep 靜態安全掃描
 semgrep scan --config ./rules/
 
-# 產出結構化 JSON 診斷報告，供 AI Agent 直接讀取並自動修復
+# 產出結構化 JSON 報告
 semgrep scan --config ./rules/ --json -o audit-report.json
 ```
 
-核心檢測項目：
+兩種掃描機制均檢測相同的核心安全規則：
 - **SEC-001**：AppData 或使用者目錄明文持久化敏感機密（Python, C#, JS/TS）。
 - **SEC-002**：桌面 Public Client 原始碼硬編碼 OAuth Client Secret（C#, Python, JS/TS）。
 - **SEC-003**：加密失敗時在 catch 區塊悄悄改存明文之 Silent Fallback 反模式（C#）。
@@ -266,6 +304,15 @@ windows-desktop-secure-secrets/
 ├── README.zh-TW.md                       # 繁體中文說明文檔
 ├── LICENSE                               # MIT 授權條款
 ├── .gitignore                            # Git 過濾規則
+├── win_secret_scanner.py                 # 獨立零依賴 Python 命令列掃描工具 (CLI)
+├── scanner/                              # 靜態代碼分析檢測核心引擎
+│   ├── __init__.py                       # 套件導出
+│   ├── models.py                         # 資料模型 (Finding, ScanResult, Severity)
+│   ├── rules.py                          # 規則實作 (SEC-001 ~ SEC-005)
+│   ├── engine.py                         # 路徑探索、忽略過濾與排程
+│   └── reporters.py                      # 終端機色彩、Markdown 與 JSON 報告器
+├── scripts/                              # 建置與輔助自動化腳本
+│   └── build_exe.py                      # 一鍵 PyInstaller 獨立執行檔打包工具
 ├── rules/                                # 自動化 Semgrep 安全檢測規則集
 │   ├── README.md                         # 規則清單與掃描指南
 │   └── windows-desktop-secrets.yml       # 正式 Semgrep 規則定義檔

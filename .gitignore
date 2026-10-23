@@ -37,4 +37,24 @@ docs/
 walkthrough.md
 CHANGELOG.md
 
+# Python & Build Artifacts (Zero-Binary Git Defense)
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.pytest_cache/
+
+# PyInstaller & Executable Outputs
+dist/
+build/
+*.spec
+*.exe
+*.bin
+
+# Scanner Generated Reports
+audit-report.md
+audit-report.json
+
+
+
 
